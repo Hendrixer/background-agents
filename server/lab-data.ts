@@ -75,13 +75,12 @@ export async function snapshot(labId: string): Promise<LabSnapshot> {
 
 export async function dashboard(labId?: string) {
   const lab = labId ? await findLab(labId) : await ensureLab();
-  const [recentEvents, recentObservations, recentActions, recentRuns, recentApprovals, recentTimeline] = await Promise.all([
-    db.select().from(events).where(eq(events.labId, lab.id)).orderBy(desc(events.createdAt)).limit(40),
+  const [recentEvents, recentObservations, recentActions, recentRuns, recentApprovals] = await Promise.all([
+    db.select().from(events).where(eq(events.labId, lab.id)).orderBy(desc(events.createdAt)).limit(400),
     db.select().from(observations).where(eq(observations.labId, lab.id)).orderBy(desc(observations.createdAt)).limit(12),
     db.select().from(actions).where(eq(actions.labId, lab.id)).orderBy(desc(actions.createdAt)).limit(20),
     db.select().from(runs).where(eq(runs.labId, lab.id)).orderBy(desc(runs.startedAt)).limit(8),
     db.select().from(approvals).where(eq(approvals.labId, lab.id)).orderBy(desc(approvals.createdAt)).limit(12),
-    db.select().from(timeline).where(eq(timeline.labId, lab.id)).orderBy(desc(timeline.createdAt)).limit(60),
   ]);
 
   return {
@@ -91,7 +90,6 @@ export async function dashboard(labId?: string) {
     actions: recentActions,
     runs: recentRuns,
     approvals: recentApprovals,
-    timeline: recentTimeline,
   };
 }
 
@@ -188,7 +186,11 @@ export async function applyAction(labId: string, actionId: string, name: ActionN
 
     if (name === "disable_feature") await tx.update(labs).set({ featureEnabled: false }).where(eq(labs.id, labId));
     if (name === "rollback_release") await tx.update(labs).set({ release: "v1-stable" }).where(eq(labs.id, labId));
-    await tx.insert(timeline).values({ id: randomUUID(), labId, kind: "action", message: `${name.replaceAll("_", " ")} applied`, detail: { actionId, ...result } });
+    const candidateRunId = actionId.split(":")[0];
+    const [actionRun] = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateRunId)
+      ? await tx.select({ id: runs.id }).from(runs).where(and(eq(runs.id, candidateRunId), eq(runs.labId, labId))).limit(1)
+      : [];
+    await tx.insert(timeline).values({ id: randomUUID(), labId, runId: actionRun?.id ?? null, kind: "agent:act", message: `${name.replaceAll("_", " ")} applied`, detail: { actionId, ...result } });
     return result;
   });
 }
