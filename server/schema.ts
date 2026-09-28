@@ -23,6 +23,17 @@ export const events = pgTable("events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const eventPlans = pgTable("event_plans", {
+  id: uuid("id").primaryKey(),
+  labId: uuid("lab_id").notNull().references(() => labs.id),
+  total: integer("total").notNull(),
+  sent: integer("sent").notNull().default(0),
+  intervalMs: integer("interval_ms").notNull(),
+  weights: jsonb("weights").$type<Record<string, number>>().notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const observations = pgTable("observations", {
   id: uuid("id").primaryKey(),
   labId: uuid("lab_id").notNull().references(() => labs.id),

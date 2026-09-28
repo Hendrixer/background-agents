@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { actions, approvals, events, labs, observations, runs, timeline } from "./schema";
+import { actions, approvals, eventPlans, events, labs, observations, runs, timeline } from "./schema";
 import { inngest } from "./inngest";
-import type { ActionName, EventType, LabSnapshot, Scenario } from "../shared/types";
+import { EVENT_TYPES, type ActionName, type EventType, type LabSnapshot, type Scenario } from "../shared/types";
 
 type Lab = typeof labs.$inferSelect;
 
@@ -32,6 +32,7 @@ export async function resetLab(scenario: Scenario, seed = 1) {
   const previous = await activeLab();
   if (previous?.running) {
     await db.update(labs).set({ running: false }).where(eq(labs.id, previous.id));
+    await db.update(eventPlans).set({ status: "stopped" }).where(and(eq(eventPlans.labId, previous.id), eq(eventPlans.status, "running")));
   }
   const [lab] = await db.insert(labs).values({
     id: randomUUID(),
@@ -75,12 +76,13 @@ export async function snapshot(labId: string): Promise<LabSnapshot> {
 
 export async function dashboard(labId?: string) {
   const lab = labId ? await findLab(labId) : await ensureLab();
-  const [recentEvents, recentObservations, recentActions, recentRuns, recentApprovals] = await Promise.all([
+  const [recentEvents, recentObservations, recentActions, recentRuns, recentApprovals, recentPlans] = await Promise.all([
     db.select().from(events).where(eq(events.labId, lab.id)).orderBy(desc(events.createdAt)).limit(400),
     db.select().from(observations).where(eq(observations.labId, lab.id)).orderBy(desc(observations.createdAt)).limit(12),
     db.select().from(actions).where(eq(actions.labId, lab.id)).orderBy(desc(actions.createdAt)).limit(20),
-    db.select().from(runs).where(eq(runs.labId, lab.id)).orderBy(desc(runs.startedAt)).limit(8),
+    db.select().from(runs).where(eq(runs.labId, lab.id)).orderBy(desc(runs.startedAt)).limit(100),
     db.select().from(approvals).where(eq(approvals.labId, lab.id)).orderBy(desc(approvals.createdAt)).limit(12),
+    db.select().from(eventPlans).where(eq(eventPlans.labId, lab.id)).orderBy(desc(eventPlans.createdAt)).limit(1),
   ]);
 
   return {
@@ -90,17 +92,54 @@ export async function dashboard(labId?: string) {
     actions: recentActions,
     runs: recentRuns,
     approvals: recentApprovals,
+    plan: recentPlans[0] ?? null,
   };
 }
 
-export async function configureLab(labId: string, input: { rate?: number; eventTypes?: EventType[]; running?: boolean }) {
-  const lab = await findLab(labId);
-  const [updated] = await db.update(labs).set({
-    rate: input.rate ?? lab.rate,
-    eventTypes: input.eventTypes ?? lab.eventTypes,
-    running: input.running ?? lab.running,
-  }).where(eq(labs.id, labId)).returning();
-  return updated;
+export async function activeEventPlan(labId: string) {
+  const [plan] = await db.select().from(eventPlans).where(and(eq(eventPlans.labId, labId), eq(eventPlans.status, "running"))).orderBy(desc(eventPlans.createdAt)).limit(1);
+  return plan ?? null;
+}
+
+export async function startEventPlan(labId: string, input: { total: number; intervalMs: number; weights: Record<EventType, number> }) {
+  const current = await activeLab();
+  if (current?.id !== labId) throw new Error("Only the active scenario can send events");
+  return db.transaction(async (tx) => {
+    await tx.update(eventPlans).set({ status: "stopped" }).where(and(eq(eventPlans.labId, labId), eq(eventPlans.status, "running")));
+    const [plan] = await tx.insert(eventPlans).values({ id: randomUUID(), labId, total: input.total, intervalMs: input.intervalMs, weights: input.weights, status: "running" }).returning();
+    await tx.update(labs).set({ running: true }).where(eq(labs.id, labId));
+    return plan;
+  });
+}
+
+export async function stopEventPlan(labId: string) {
+  const current = await activeLab();
+  if (current?.id !== labId) throw new Error("Only the active scenario can stop events");
+  await db.transaction(async (tx) => {
+    await tx.update(eventPlans).set({ status: "stopped" }).where(and(eq(eventPlans.labId, labId), eq(eventPlans.status, "running")));
+    await tx.update(labs).set({ running: false }).where(eq(labs.id, labId));
+  });
+}
+
+export function nextPlanEventType(plan: typeof eventPlans.$inferSelect): EventType {
+  const types = EVENT_TYPES.filter((type) => (plan.weights[type] ?? 0) > 0);
+  const quotas = Object.fromEntries(types.map((type) => [type, Math.floor(plan.total * plan.weights[type] / 100)])) as Record<EventType, number>;
+  let remaining = plan.total - types.reduce((sum, type) => sum + quotas[type], 0);
+  for (const type of [...types].sort((a, b) => (plan.total * plan.weights[b] % 100) - (plan.total * plan.weights[a] % 100))) {
+    if (remaining-- <= 0) break;
+    quotas[type] += 1;
+  }
+  const used = Object.fromEntries(types.map((type) => [type, 0])) as Record<EventType, number>;
+  let chosen = types[0];
+  for (let index = 0; index <= plan.sent; index++) {
+    chosen = types.filter((type) => used[type] < quotas[type]).sort((a, b) => {
+      const aDebt = quotas[a] * (index + 1) / plan.total - used[a];
+      const bDebt = quotas[b] * (index + 1) / plan.total - used[b];
+      return bDebt - aDebt;
+    })[0];
+    used[chosen] += 1;
+  }
+  return chosen;
 }
 
 function eventData(lab: Lab, type: EventType) {
@@ -117,7 +156,7 @@ function eventData(lab: Lab, type: EventType) {
   }
 }
 
-export async function emitLabEvent(labId: string, forcedType?: EventType) {
+export async function emitLabEvent(labId: string, forcedType?: EventType, planId?: string) {
   const lab = await findLab(labId);
   const types = lab.eventTypes as EventType[];
   const type = forcedType || types[(lab.seed + lab.counter) % types.length];
@@ -125,7 +164,14 @@ export async function emitLabEvent(labId: string, forcedType?: EventType) {
   const eventId = randomUUID();
 
   await db.transaction(async (tx) => {
-    await tx.update(labs).set({ counter: lab.counter + 1 }).where(eq(labs.id, labId));
+    if (planId) {
+      const [plan] = await tx.select().from(eventPlans).where(and(eq(eventPlans.id, planId), eq(eventPlans.status, "running"))).limit(1);
+      if (!plan || plan.labId !== labId || plan.sent >= plan.total) throw new Error("Event plan is no longer running");
+      const finished = plan.sent + 1 >= plan.total;
+      await tx.update(eventPlans).set({ sent: plan.sent + 1, status: finished ? "completed" : "running" }).where(eq(eventPlans.id, planId));
+      if (finished) await tx.update(labs).set({ running: false }).where(eq(labs.id, labId));
+    }
+    await tx.update(labs).set({ counter: sql`${labs.counter} + 1` }).where(eq(labs.id, labId));
     await tx.insert(events).values({ id: eventId, labId, type, data });
     if (type === "health") {
       const health = serviceHealth(lab);
@@ -135,7 +181,7 @@ export async function emitLabEvent(labId: string, forcedType?: EventType) {
   });
 
   try {
-    await inngest.send({ name: "lab/observation", data: { labId, eventId, type } });
+    await inngest.send({ name: "lab/observation", data: { labId, eventId, type, planId } });
   } catch (error) {
     console.warn("Inngest event delivery failed; local event was saved", error);
   }
