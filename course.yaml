@@ -43,15 +43,15 @@ Agenda:
   Overview: Build an incident-response agent across six hands-on lessons, progressing from a goal-driven loop to durable execution, event-driven waiting, human approval, safe retries, and a final incident drill. Each lesson is followed by at least 15 minutes for a break and catch-up, with lunch after lesson three.
   Schedule:
     - "0930": Give the agent a goal — state, actions, and the core harness
-      "1015": Break and catch-up
-      "1030": Make progress durable — checkpoint and resume with Inngest
-      "1115": Break and catch-up
-      "1130": Wait for the world — events, timers, and fresh state
-      "1215": Lunch Break
-      "1315": Put a human in control — approval, rejection, and expiry
-      "1400": Break and catch-up
-      "1415": Make retries safe — idempotency, run limits, and cancellation
-      "1500": Break and catch-up
-      "1515": Run an incident drill — extend, debug, and verify the agent
-      "1600": Break and catch-up
-      "1615": Wrap-up, tradeoffs, and next steps
+    - "1015": Break and catch-up
+    - "1030": Make progress durable — checkpoint and resume with Inngest
+    - "1115": Break and catch-up
+    - "1130": Wait for the world — events, timers, and fresh state
+    - "1215": Lunch Break
+    - "1315": Put a human in control — approval, rejection, and expiry
+    - "1400": Break and catch-up
+    - "1415": Make retries safe — idempotency, run limits, and cancellation
+    - "1500": Break and catch-up
+    - "1515": Run an incident drill — extend, debug, and verify the agent
+    - "1600": Break and catch-up
+    - "1615": Wrap-up, tradeoffs, and next steps
