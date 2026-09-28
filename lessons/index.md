@@ -1,6 +1,8 @@
 # Build AI Agents that Never Sleep
 
-In this workshop you will build a Node.js incident-response agent that keeps working after the initial request, waits for service events and human decisions, and resumes after a process restart.
+I think background agents are the real productivity unlock: give one a goal, let it observe a changing world, and have it reach out when it needs your judgment. In this workshop we will build a Node.js incident-response agent that keeps working after the initial request, waits for service events and human decisions, and resumes after a process restart.
+
+The loop we will keep returning to is **goal → observe state → choose an action → enforce policy → act or wait → observe again**. The model proposes a next action. The harness decides what is allowed, when to pause, and what evidence counts as done. By the end of the day, the agent inbox will show where it needs your approval or answer, and the run timeline will show what happened while you were away.
 
 The [Incident Lab](http://127.0.0.1:5173) and [Inngest Dev Server](http://127.0.0.1:8288) run locally. The lab UI, simulator, and database are supplied. You will build the agent and its harness.
 
@@ -29,5 +31,7 @@ There is at least a 15-minute catch-up break after each lesson. Lunch begins at 
 | 6 | `lesson-6` | `complete` | [Incident drill](/06-incident-drill/) |
 
 Each lesson page contains exact code blocks derived from those two branches. Red lines are removed, green lines are added, and unchanged lines show where the edit belongs. The copy button on a diff copies the resulting code without diff prefixes.
+
+Start with the **Open and predict** question. The lesson's conceptual section is written for us to discuss together and for you to revisit later. Then make the live edits, inspect the trace, and run the failure experiment. If your model picks a different action, follow the state and policy in the trace rather than expecting a fixed script. The instructor can use `AGENT_DEMO_MODE=1` for a repeatable demonstration; your normal run uses the model configured in `.env`.
 
 For setup, install dependencies, create the `background_agents` PostgreSQL database, add your API key and model to `.env`, then run `npm run db:push`, `npm run db:seed`, and `npm run dev`. The repository README has the full process and branch instructions.
