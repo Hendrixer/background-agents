@@ -34,7 +34,7 @@ Human availability is another design constraint. What happens when the person is
 
 ## See it in the lab
 
-On `/admin`, reset **Faulty release** and start health and log events at **1/sec**. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in the activity log on `/agent` before we add the inbox gate.
+On `/admin`, create **Faulty release**, start an agent, and send 12 health events one second apart. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in `/activity` before we add the inbox gate.
 
 ## Live coding
 
@@ -100,7 +100,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start an agent from `/agent` on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the inbox on `/`. The rollback should happen once and the run should verify recovery. Reset and repeat with Deny to see `escalated`.
+Start an agent from `/admin` on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the inbox on `/`. Send a new health-event batch if the earlier one ended; the rollback should happen once and the run should verify recovery. Reset and repeat with Deny to see `escalated`.
 
 ## Break it on purpose
 
