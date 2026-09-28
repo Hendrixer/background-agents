@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .vitepress/cache/
+lessons/.vitepress/cache/
 lessons/.vitepress/dist/
 .env
 .env.local

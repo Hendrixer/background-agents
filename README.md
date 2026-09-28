@@ -36,6 +36,8 @@ OPENAI_MODEL=your-available-model
 
 The local Inngest Dev Server does not require a cloud account. Existing `INNGEST_SIGNING_KEY` and `INNGEST_EVENT_KEY` values can remain in `.env`. The `dev` scripts set `INNGEST_DEV=1` explicitly.
 
+For an instructor rehearsal with repeatable model choices, run only the agent process with `AGENT_DEMO_MODE=1 npm run dev:agent`. Students use their own API key for the normal model path.
+
 Apply the schema and seed the first incident:
 
 ```bash
@@ -68,3 +70,7 @@ Each lesson branch contains the previous lesson's solution and the current lesso
 | 4 | `lesson-4` | `lesson-5` |
 | 5 | `lesson-5` | `lesson-6` |
 | 6 | `lesson-6` | `complete` |
+
+Start at `lesson-1`. On a lesson branch, the app contains the prior lesson's solution and the notes show the code to add. When you finish lesson 1, your files should match `lesson-2`; lesson 2 starts there. The notes site is available on every branch.
+
+For instructors, `python3 scripts/build_notes.py --check` verifies that all displayed diff blocks match the neighboring branches. Run the script without `--check` after changing a teaching checkpoint, then rebuild the notes site. A code checkout does not change PostgreSQL data or Inngest history, so reset the simulator between branch demos.
