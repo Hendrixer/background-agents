@@ -28,7 +28,7 @@ Summary: >
 
   Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of state, action validation, and completion. Then you'll use Inngest to make execution durable, pause for external events and human decisions, and recover safely from failures. You'll deliberately restart the agent, duplicate events, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
 
-  A prebuilt local UI and event simulator keep the focus on the agent and its harness. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. Everything runs locally with your LLM API key; no deployment is required. By the end of the day, you'll have a working reference architecture and a clear mental model for when background agents are useful, how they pause and resume, and how to inspect their behavior.
+  A prebuilt local UI and event simulator keep the focus on the agent and its harness. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required. By the end of the day, you'll have a working reference architecture and a clear mental model for when background agents are useful, how they pause and resume, and how to inspect their behavior.
 
 Audience:
   Overview: This workshop is for developers who already have some JavaScript or TypeScript experience and want to move beyond chat-based AI demos into real agent systems. It is especially useful for full-stack engineers, backend engineers, and technical founders building automations, internal tools, or product features where work needs to continue asynchronously in the background. Prior agent experience is helpful but not required.
@@ -39,6 +39,7 @@ Audience:
     - Familiarity with async/await, APIs, and basic server concepts.
     - Basic understanding of LLM APIs or prior use of an AI SDK is helpful, but not required.
     - Bring a laptop with Node.js LTS, npm, Git, and an editor already installed.
+    - Bring an internet connection for the LLM API and a free temporary Neon Postgres database; no local PostgreSQL installation is needed.
     - A working LLM API key with available usage credits is required for the hands-on exercises.
 
 Agenda:
