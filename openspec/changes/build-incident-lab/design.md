@@ -15,7 +15,7 @@ The project currently contains course planning documents and an environment file
 3. Use one active scenario instance at a time. Reset creates a new ID and retains old records. This avoids complex tenancy while making stale events and approvals easy to distinguish.
 4. Use server-side timer generation at a bounded rate. Generation reads the active instance and persists each event; browser refresh does not affect it. A dedicated queue would add infrastructure without helping the workshop.
 5. Make simulated remediation change domain state. Health generation derives from the active scenario and current release/flag/dependency settings. The agent can verify recovery from fresh evidence.
-6. Build a React/Vite dashboard with charcoal surfaces, restrained borders, clear typography, and a readable run timeline. VitePress serves Markdown lesson notes separately.
+6. Build a React/Vite operator app whose home route is an actionable agent inbox. Give service state, server events, agent runs, and simulator controls focused routes. Persist a per-run activity log in PostgreSQL so the operator can inspect the harness loop; use Inngest separately for execution traces. Label health observations as synthetic signals derived from scenario state. VitePress serves Markdown lesson notes separately.
 7. Give each operation a caller-provided action ID. The lab stores the result before responding, so later retry lessons can demonstrate an acknowledgement failure without duplicating the effect.
 
 ## Risks / Trade-offs

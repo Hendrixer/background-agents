@@ -3,6 +3,7 @@ import { ZodError, z } from "zod";
 import { ACTIONS, EVENT_TYPES, SCENARIOS } from "../shared/types";
 import { activeLab, applyAction, configureLab, consumeFailureInjection, dashboard, emitLabEvent, ensureLab, recoverUpstream, resetLab, setFailureInjection, snapshot } from "./lab-data";
 import { cancelRun, decideProposal, getRun, startRun } from "./agent-data";
+import { activityForRun } from "./agent-log";
 
 const app = express();
 app.use(express.json());
@@ -126,6 +127,12 @@ app.post("/api/runs/cancel", async (request, response) => {
 
 app.get("/api/runs/:runId", async (request, response) => {
   response.json(await getRun(z.string().uuid().parse(request.params.runId)));
+});
+
+app.get("/api/runs/:runId/activity", async (request, response) => {
+  const runId = z.string().uuid().parse(request.params.runId);
+  await getRun(runId);
+  response.json(await activityForRun(runId));
 });
 
 app.post("/api/approvals/decide", async (request, response) => {

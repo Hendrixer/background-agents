@@ -2,9 +2,9 @@
 
 I think background agents are the real productivity unlock: give one a goal, let it observe a changing world, and have it reach out when it needs your judgment. In this workshop we will build a Node.js incident-response agent that keeps working after the initial request, waits for service events and human decisions, and resumes after a process restart.
 
-The loop we will keep returning to is **goal → observe state → choose an action → enforce policy → act or wait → observe again**. The model proposes a next action. The harness decides what is allowed, when to pause, and what evidence counts as done. By the end of the day, the agent inbox will show where it needs your approval or answer, and the run timeline will show what happened while you were away.
+The loop we will keep returning to is **goal → observe state → choose an action → enforce policy → act or wait → observe again**. The model proposes a next action. The harness decides what is allowed, when to pause, and what evidence counts as done. By the end of the day, the agent inbox will show where it needs your approval or answer, and the per-run activity log will show what happened while you were away.
 
-The [Incident Lab](http://127.0.0.1:5173) and [Inngest Dev Server](http://127.0.0.1:8288) run locally. The lab UI, simulator, and database are supplied. You will build the agent and its harness.
+The [Incident Lab](http://127.0.0.1:5173) and [Inngest Dev Server](http://127.0.0.1:8288) run locally. The lab UI, simulator, and database are supplied. Use `/admin` to create incidents and control events, `/agent` to inspect the agent's activity, `/events` to inspect service events, and the home page to respond to the agent in its inbox. You will build the agent and its harness.
 
 ## The day
 
