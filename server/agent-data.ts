@@ -68,15 +68,6 @@ export async function agentState(labId: string) {
 
 export type AgentState = Awaited<ReturnType<typeof agentState>>;
 
-export function hasRecovered(state: AgentState) {
-  const lastThree = state.observations.slice(0, 3);
-  if (lastThree.length < 3 || !lastThree.every((item) => item.healthy)) return false;
-  const newest = new Date(lastThree[0].at).getTime();
-  const oldest = new Date(lastThree[2].at).getTime();
-  if (Date.now() - newest > 20_000) return false;
-  return newest - oldest >= 1_500;
-}
-
 export async function recordDecision(labId: string, runId: string, iteration: number, action: string, reason: string) {
   await addTimeline(labId, "decision", `Decision ${iteration}: ${action.replaceAll("_", " ")}`, { reason }, runId);
 }
