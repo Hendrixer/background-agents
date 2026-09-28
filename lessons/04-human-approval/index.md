@@ -19,7 +19,7 @@ An approval is a persisted proposal with exact input and an expiry. The workflow
 
 In `server/agent-workflow.ts`, add the imports and the rollback gate immediately after `actionId` is computed. The final `execute-action` call must remain below the gate.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 

@@ -17,11 +17,26 @@ The event is a wakeup signal, not the truth. Match it to this lab instance, then
 
 ## Live coding
 
-In `server/agent-workflow.ts`, change the completion check and each poll. Keep the surrounding status updates. The `hasRecovered` helper is supplied in `server/agent-data.ts`; this lesson wires it into the durable loop.
+First add `hasRecovered` in `server/agent-data.ts`, then change the completion check and each poll in `server/agent-workflow.ts`. Keep the surrounding status updates.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
-### Edit 1 · `server/agent-workflow.ts`
+### Edit 1 · `server/agent-data.ts`
+
+Add this new function immediately after `export type AgentState`. The `recordDecision` function below it stays where it is.
+
+```ts
+export function hasRecovered(state: AgentState) {
+  const lastThree = state.observations.slice(0, 3);
+  if (lastThree.length < 3 || !lastThree.every((item) => item.healthy)) return false;
+  const newest = new Date(lastThree[0].at).getTime();
+  const oldest = new Date(lastThree[2].at).getTime();
+  if (Date.now() - newest > 20_000) return false;
+  return newest - oldest >= 1_500;
+}
+```
+
+### Edit 2 · `server/agent-workflow.ts`
 
 Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
 
@@ -34,7 +49,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
  
 ```
 
-### Edit 2 · `server/agent-workflow.ts`
+### Edit 3 · `server/agent-workflow.ts`
 
 Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
 
@@ -49,7 +64,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
          return { report };
 ```
 
-### Edit 3 · `server/agent-workflow.ts`
+### Edit 4 · `server/agent-workflow.ts`
 
 Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
 
@@ -64,7 +79,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
  
 ```
 
-### Edit 4 · `server/agent-workflow.ts`
+### Edit 5 · `server/agent-workflow.ts`
 
 Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
 

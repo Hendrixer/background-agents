@@ -19,7 +19,7 @@ Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and pr
 
 In `server/agent-workflow.ts`, add the external-wait branch before `chooseAction`, then let `request_help` share the persisted proposal path. The rollback recheck still applies only to rollback.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 

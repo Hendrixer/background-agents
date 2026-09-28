@@ -19,7 +19,7 @@ Inngest reruns function code to reconstruct a workflow and reuses completed step
 
 In `server/agent-workflow.ts`, replace the single opaque `step.run("whole-agent-loop")` with the shown loop. The helper and function options remain. This is one larger refactor; typecheck after the whole block is in place.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 

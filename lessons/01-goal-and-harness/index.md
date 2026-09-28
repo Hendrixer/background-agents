@@ -19,7 +19,7 @@ A chat agent is usually organized around a request/response turn. This run has a
 
 Replace the placeholder handler inside `incidentAgent`. The imports and `executeAction` helper above it already exist and stay. Read the `-` lines as removals and the `+` lines as code to type.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 

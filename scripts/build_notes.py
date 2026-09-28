@@ -26,7 +26,7 @@ lessons = [
          promise='The run pauses on correlated events, wakes up, reloads state, and completes only after sustained fresh recovery.',
          opening='With Feature rollout reset, stop the event stream before starting an agent. The current code polls every two seconds. Ask: “What state should the agent trust after it wakes?”',
          talk='The event is a wakeup signal, not the truth. Match it to this lab instance, then read the latest state again. A timeout is a reconciliation opportunity when delivery is missed. Completion is owned by `hasRecovered`: three recent healthy observations spread across time, so one green sample cannot prematurely end the run.',
-         edit='In `server/agent-workflow.ts`, change the completion check and each poll. Keep the surrounding status updates. The `hasRecovered` helper is supplied in `server/agent-data.ts`; this lesson wires it into the durable loop.',
+         edit='First add `hasRecovered` in `server/agent-data.ts`, then change the completion check and each poll in `server/agent-workflow.ts`. Keep the surrounding status updates.',
          verify='Start the run with events stopped. The UI should show `waiting`. Emit one health event: the run wakes but must not complete. Resume the stream; after remediation and three fresh healthy observations, it completes and writes a report.',
          experiment='Stop events again while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Restart events and watch it resume.',
          mistakes='If the run never wakes, check that the event has the same `labId` and that the Inngest Dev Server is still running. A deployment or log event wakes the run but does not count as a healthy observation.',
@@ -61,7 +61,7 @@ lessons = [
 ]
 
 def diff_blocks(start, solution):
-    output = subprocess.check_output(['git', 'diff', '--unified=3', start, solution, '--', 'server/agent-workflow.ts', 'server/lab-data.ts'], cwd=project, text=True)
+    output = subprocess.check_output(['git', 'diff', '--unified=3', start, solution, '--', 'server/agent-data.ts', 'server/agent-workflow.ts', 'server/lab-data.ts'], cwd=project, text=True)
     blocks = []
     file = None
     hunk = None
@@ -93,8 +93,16 @@ for number, lesson in enumerate(lessons, 1):
                'Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.', '',
                '## The idea', '', lesson['talk'], '',
                '## Live coding', '', lesson['edit'], '',
-               'These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.', '']
+               'These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.', '']
     for index, (file, lines) in enumerate(blocks, 1):
+        if file == 'server/agent-data.ts' and number == 3:
+            added = [line[1:] for line in lines if line.startswith('+')]
+            while added and not added[-1]:
+                added.pop()
+            content += [f'### Edit {index} · `{file}`', '',
+                        'Add this new function immediately after `export type AgentState`. The `recordDecision` function below it stays where it is.', '',
+                        '```ts', *added, '```', '']
+            continue
         content += [f'### Edit {index} · `{file}`', '',
                     f'Open `{file}` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.', '',
                     '```diff', *lines, '```', '']

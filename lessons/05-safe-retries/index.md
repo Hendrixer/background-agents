@@ -19,7 +19,7 @@ Inngest checkpoints after `step.run` returns. Between the external effect and th
 
 Make the two focused edits in `server/agent-workflow.ts`, then the two edits inside `applyAction` in `server/lab-data.ts`. The rest of the simulator code is supplied. The ID already passed from the workflow is `runId:iteration:action`.
 
-These code blocks are the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed. Keep the unchanged context visible while typing.
+These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
