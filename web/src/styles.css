@@ -11,7 +11,7 @@ h1, h2, p { margin-top: 0; }
 .brand { display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -.06em; }
 .brand-mark { width: 29px; height: 29px; border-radius: 8px; background: #d8e8dc; color: #192b20; display: grid; place-items: center; margin-right: 2px; }
 .brand-dim { font-weight: 450; color: #8c9391; margin-left: -8px; }
-.workspace-name { margin: 45px 12px 15px; color: #737982; font-size: 10px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
+.workspace-name { margin: 45px 12px 15px; color: #737982; font-size: 10px; font-weight: 700; letter-spacing: .08em; line-height: 1.5; overflow-wrap: anywhere; }
 .workspace-name span { color: #42474e; padding: 0 2px; }
 .side-nav { display: flex; flex-direction: column; gap: 3px; }
 .side-nav a, .admin-link { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 7px; color: #989ca4; font-size: 12px; font-weight: 540; }
@@ -28,7 +28,8 @@ h1, h2, p { margin-top: 0; }
 .topbar-links { display: flex; gap: 20px; letter-spacing: 0; text-transform: none; font-size: 11px; font-weight: 500; }
 .topbar-links a:hover { color: #f4f4f5; }
 .page-content { max-width: 1340px; margin: 0 auto; padding: 0 32px 48px; }
-.error-banner { margin: 20px 0; padding: 12px 14px; background: #2a191c; border: 1px solid #6c343d; color: #ffc3c8; display: flex; gap: 8px; align-items: center; font-size: 12px; border-radius: 6px; }
+.error-banner { margin: 20px 0; padding: 12px 14px; background: #2a191c; border: 1px solid #6c343d; color: #ffc3c8; display: flex; gap: 8px; align-items: center; font-size: 12px; border-radius: 6px; overflow-wrap: anywhere; }
+.error-banner svg, .error-banner button { flex-shrink: 0; }
 .error-banner button { margin-left: auto; border: 0; background: none; color: inherit; text-decoration: underline; }
 .button { border: 1px solid transparent; height: 34px; border-radius: 6px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-size: 11px; font-weight: 650; white-space: nowrap; }
 .button-primary { background: #dce9df; color: #17241a; }
