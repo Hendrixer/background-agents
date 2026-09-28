@@ -12,6 +12,7 @@
     "docs:build": "vitepress build lessons",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx server/seed.ts",
+    "preflight": "node scripts/preflight.mjs",
     "typecheck": "tsc --noEmit",
     "build": "vite build"
   },

@@ -42,6 +42,7 @@ Apply the schema and seed the first incident:
 
 ```bash
 npm run db:push
+npm run preflight
 npm run db:seed
 npm run dev
 ```
