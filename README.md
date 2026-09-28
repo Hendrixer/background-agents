@@ -60,6 +60,7 @@ Use Feature rollout for lessons 1–3 and 5, Faulty release for lesson 4, and Up
 Stop events to test waiting; this does not cancel the agent. Cancel the run separately. Reset creates a new scenario instance while prior run history remains in PostgreSQL.
 
 The simulator is intentionally small. It has one active incident at a time and bounded event rates so each state transition is easy to inspect during a live lesson.
+The local agent endpoint accepts larger Inngest replay requests than Express's default 100 KB body limit. Each wakeup still adds to a run's step history, so reset between drills; a production agent that waits indefinitely should compact or roll over its work rather than accumulate an unbounded single run.
 
 ## Lesson branches
 
