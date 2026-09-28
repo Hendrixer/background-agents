@@ -30,11 +30,11 @@ A single healthy sample is a weak stopping rule. Three samples taken in a few mi
 
 This is one place where AI engineering is also ordinary systems engineering. The model can recommend `complete`, but it cannot waive the measured recovery condition. Conversely, a deterministic recovery predicate can end the run even if the model would keep talking. That separation prevents a persuasive report from becoming its own evidence. In the [agent evaluation vocabulary Anthropic uses](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), the final environment state is an outcome; the model's text is part of the trajectory. We should inspect both, but not confuse them.
 
-The current lab treats observations as trustworthy because it creates them locally. In a real incident, you would ask where each signal comes from, how old it is, what it measures, and whether one failed probe could hide behind an average. “Observe the world” is not a single API call; it is an evidence design problem.
+The current lab treats observations as trustworthy because it creates them locally from a scripted condition. Its 1% and 42% error signals are generated values, not measurements of requests. In a real incident, you would ask where each signal comes from, how old it is, what it measures, and whether one failed probe could hide behind an average. “Observe the world” is not a single API call; it is an evidence design problem.
 
 ## See it in the lab
 
-Reset **Feature rollout**, stop the event stream, and start an agent. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then emit one health event and compare the timeline.
+On `/admin`, reset **Feature rollout**, stop the event stream, and start an agent from `/agent`. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then emit one health event and compare the server events on `/events` with the run activity on `/agent`.
 
 ## Live coding
 
@@ -74,7 +74,7 @@ Import the new predicate into the workflow before using it.
 +import { agentState, getRun, hasRecovered, recordDecision, setIteration, setRun } from "./agent-data";
  import { chooseAction, writeReport } from "./agent-brain";
  import { inngest } from "./inngest";
- 
+ import { logAgentActivity } from "./agent-log";
 ```
 
 ### Edit 3 · `server/agent-workflow.ts`
@@ -83,7 +83,7 @@ Replace the one-sample success condition with `hasRecovered(state)`. The report 
 
 ```diff
  
-       const state = await step.run(`observe-state-${cycle}`, () => agentState(labId));
+       const state = await step.run(`observe-state-${cycle}`, () => agentState(labId, runId));
  
 -      if (state.service.healthy && state.observations.length > 0) {
 +      if (hasRecovered(state)) {
@@ -134,7 +134,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the run with events stopped. The UI should show `waiting`. Emit one health event: the run wakes but must not complete. Resume the stream; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster event rate needs more than three samples to span that interval.
+Start the run from `/agent` with events stopped. The run page should show `waiting`. Emit one health event on `/admin`: the run wakes but must not complete. Resume the stream; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster event rate needs more than three samples to span that interval.
 
 ## Break it on purpose
 

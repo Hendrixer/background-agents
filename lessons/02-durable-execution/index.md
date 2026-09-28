@@ -36,7 +36,7 @@ Anthropic's [long-running harness work](https://www.anthropic.com/engineering/ef
 
 ## See it in the lab
 
-Open the `whole-agent-loop` trace from lesson 1, then reset **Feature rollout**. The service may have changed during the step, but the trace contains one result for the entire loop. We will make each expensive decision and external effect visible as its own checkpoint.
+Open the `whole-agent-loop` trace from lesson 1, then reset **Feature rollout** on `/admin`. The service may have changed during the step, but the trace contains one result for the entire loop. We will make each expensive decision and external effect visible as its own checkpoint.
 
 ## Live coding
 
@@ -71,9 +71,9 @@ Lift the loop out of `whole-agent-loop` so Inngest can checkpoint its meaningful
 +        return;
 +      }
 +
-+      const state = await step.run(`observe-state-${cycle}`, () => agentState(labId));
++      const state = await step.run(`observe-state-${cycle}`, () => agentState(labId, runId));
  
--        const state = await agentState(labId);
+-        const state = await agentState(labId, runId);
 -        if (state.service.healthy && state.observations.length > 0) {
 -          const report = await writeReport(run.goal, state);
 -          await setRun(runId, "completed", null, report);
@@ -134,7 +134,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
+Start the Feature rollout run from `/agent` and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
 
 ## Break it on purpose
 
