@@ -1,5 +1,5 @@
 import { activeLab, addTimeline } from "./lab-data";
-import { agentState, getRun, hasRecovered, recordDecision, setIteration, setRun } from "./agent-data";
+import { agentState, getProposal, getRun, hasRecovered, proposeAction, recordDecision, setIteration, setRun, staleProposal } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
 
@@ -67,6 +67,34 @@ export const incidentAgent = inngest.createFunction(
       }
 
       const actionId = `${runId}:${iteration}:${decision.action}`;
+      if (decision.action === "rollback_release") {
+        const input = { expectedRelease: state.service.release };
+        const proposalId = await step.run(`propose-action-${cycle}`, async () => {
+          const proposal = await proposeAction(labId, runId, actionId, decision.action, input);
+          return proposal.id;
+        });
+
+        let approval = await step.run(`read-approval-${cycle}`, () => getProposal(proposalId));
+        let approvalCheck = 0;
+        while (approval.status === "pending") {
+          approvalCheck += 1;
+          await step.waitForEvent(`wait-for-approval-${cycle}-${approvalCheck}`, { event: "lab/approval.decided", if: `async.data.proposalId == "${proposalId}"`, timeout: "10s" });
+          approval = await step.run(`reconcile-approval-${cycle}-${approvalCheck}`, () => getProposal(proposalId));
+        }
+
+        if (approval.status === "rejected" || approval.status === "expired") {
+          await step.run(`stop-after-human-decision-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${approval.status}`));
+          return;
+        }
+        if (approval.status !== "approved") continue;
+
+        const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId));
+        if (fresh.service.release !== input.expectedRelease) {
+          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
+          continue;
+        }
+      }
+
       await step.run(`execute-action-${cycle}`, () => executeAction(labId, actionId, decision.action));
       await step.run(`wait-status-after-action-${cycle}`, () => setRun(runId, "waiting", "Waiting for the service to report its new state"));
       await step.waitForEvent(`wait-after-action-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
