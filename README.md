@@ -8,11 +8,11 @@ A one-day, hands-on Node.js workshop. Students build the agent and harness while
 | --- | --- | --- |
 | Incident lab API | http://127.0.0.1:3001 | Service state, event simulator, operations, approvals |
 | Agent endpoint | http://127.0.0.1:3002/api/inngest | Inngest function code |
-| Incident dashboard | http://127.0.0.1:5173 | Operator controls and run timeline |
+| Operations dashboard | http://127.0.0.1:5173 | Service health, agent runs, inbox, and separate logs |
 | Inngest Dev Server | http://127.0.0.1:8288 | Durable execution and step traces |
 | Lesson notes | http://127.0.0.1:5174 | Markdown site, started separately |
 
-PostgreSQL stores the lab's authoritative state and run history. Inngest stores workflow checkpoints. Keep the Inngest Dev Server running while restarting the agent process for the durability demonstration.
+PostgreSQL stores the lab's authoritative state and a per-run agent activity log. Inngest stores workflow checkpoints and execution traces. Keep the Inngest Dev Server running while restarting the agent process for the durability demonstration.
 
 ## Prerequisites
 
@@ -47,13 +47,23 @@ npm run db:seed
 npm run dev
 ```
 
-Open the dashboard and wait for the agent endpoint to appear in the Inngest Dev Server. In another terminal, run `npm run docs` for the notes site.
+Open the dashboard and wait for the agent endpoint to appear in the Inngest Dev Server. Run only one copy of each local process so the lab, agent, and Inngest use the same database and ports. In another terminal, run `npm run docs` for the notes site.
 
 For a durability demo, run `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. Restart only `dev:agent` while a run is waiting for approval.
 
 ## Incident lab
 
-Choose a scenario and reset it. Pick event types and a rate, then start the event stream or emit events manually. Feature rollout is fixed by disabling the bad feature. Faulty release requires a human-approved rollback. Upstream outage requires help and an external recovery signal from the simulator.
+The dashboard separates operator work from workshop controls:
+
+| Route | Purpose |
+| --- | --- |
+| `/` or `/inbox` | Agent inbox with requests, decisions, and replies |
+| `/service` | Scripted checkout condition and generated health observations |
+| `/agent` | Start or inspect a run, read its saved activity log and report |
+| `/events` | Service events sent to the agent |
+| `/admin` | Reset scenarios and control the event simulator |
+
+On `/admin`, choose a scenario and reset it. Pick event types and a rate, then start the event stream or emit events manually. Feature rollout is fixed by disabling the bad feature. Faulty release requires a human-approved rollback. Upstream outage requires help and an external recovery signal from the simulator. Start the agent from `/agent`, then compare its per-run activity with the service event log on `/events` and the execution trace in Inngest.
 
 Use Feature rollout for lessons 1–3 and 5, Faulty release for lesson 4, and Upstream outage for lesson 6. Earlier checkpoints intentionally leave some safety rules unfinished so you can see the behavior those lessons will change.
 
