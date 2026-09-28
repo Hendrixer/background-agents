@@ -1,6 +1,6 @@
 # Lesson notes and code authoring contract
 
-Status: six lesson pages and checkpoints built, September 28, 2026. Code blocks are generated from branch diffs by `scripts/build_notes.py` and verified with `--check`.
+Status: six lesson pages and checkpoints built, September 28, 2026. Code blocks are generated from branch diffs by `scripts/build-notes.mjs` and verified with `npm run notes:check`.
 
 ## Purpose
 
@@ -16,15 +16,12 @@ Use Markdown as the source and VitePress for local browsing, following the exist
 
 ## Lesson page structure
 
-1. Outcome, estimated time, start branch, solution branch, and required running processes.
-2. Opening demo and exact simulator preset/reset instructions.
-3. A substantial conceptual explanation in Scott's voice, with his design opinions, tradeoffs, and links to primary technical sources where appropriate.
-4. File change map: create, modify, move, or delete.
-5. Numbered live-coding steps, in teaching order.
-6. Verification: command or UI action plus expected result.
-7. Failure experiment: trigger, prediction prompt, expected trace, and recovery instructions.
-8. Catch-up checkpoint and common mistakes.
-9. Optional extension, clearly outside the required live-coding path.
+1. Outcome and start/solution branches, without a time block in the lesson header.
+2. A substantial engineering explanation in Scott's voice, including opinions, tradeoffs, and primary research or technical sources.
+3. A concrete lab setup that shows the behavior under discussion.
+4. Exact numbered live-coding edits in teaching order.
+5. Verification, deliberate failure experiment, and an advanced engineering challenge.
+6. Catch-up checkpoint, common mistakes, and an optional extension.
 
 ## Every coding step
 
@@ -103,7 +100,9 @@ For a move or deletion, name the exact paths and show affected imports or call s
 
 The code repository is the source of truth for code blocks. Markdown prose provides the teaching sequence and explanation.
 
-Proposed authoring metadata for each edit:
+The current authoring inputs are `scripts/lesson-data.json` for lesson structure and location cues, `scripts/lesson-prose/*.md` for the teaching explanation, and the adjacent Git branches for code. The Node generator reads them and writes the six Markdown pages. It refuses to generate a lesson if the number of diff hunks differs from its location cues.
+
+Useful metadata for future finer-grained edits would include:
 
 - Stable edit ID and lesson ID.
 - File path and operation type.
@@ -114,14 +113,13 @@ Proposed authoring metadata for each edit:
 
 Generate normal code blocks for new files/functions and contextual diffs for existing-code edits from those sources. Keep the generated Markdown in the repository so no custom application is required to read the notes.
 
-Verification must do more than check whether a snippet appears in the final file:
+The automated checker regenerates the pages in memory and compares them byte-for-byte with the committed Markdown. That detects drift between branch diffs and displayed code. It does **not** prove a person can apply the snippets in order or that the resulting behavior is correct. Rehearsal must also:
 
 1. Start from the exact lesson start snapshot in a temporary working directory.
-2. Apply the documented edits in order, using unique anchors and validating old content.
-3. Compare resulting teaching files with the intended solution snapshot.
-4. Run the applicable typecheck and behavioral scenario at declared runnable checkpoints.
-5. Verify configuration and dependency changes as well as TypeScript files.
-6. Build the notes site and check local lesson links.
+2. Apply the documented edits in order, using only the notes and their location cues.
+3. Compare the resulting teaching files with the intended solution snapshot.
+4. Run the typecheck and behavioral scenario at the completed lesson checkpoint.
+5. Build the notes site and check the local lesson links.
 
 If a patch fixes code on a completed branch, regenerate its affected notes and downstream checkpoints. Do not hand-edit a displayed code block independently of the implementation.
 
@@ -138,7 +136,7 @@ Preserve the course convention in the page header:
 | 5 | `lesson-5` | `lesson-6` |
 | 6 | `lesson-6` | `complete` |
 
-All checkpoint names above are planned, not yet created.
+All checkpoint branches above exist. The shared notes and generator are kept on every branch.
 
 Students can type along, copy a complete edit block, or take the next checkpoint during the break. Catch-up instructions must preserve unfinished student work, including untracked files. Do not teach `git reset --hard` or delete student work as the default recovery path.
 

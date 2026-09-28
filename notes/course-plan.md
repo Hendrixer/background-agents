@@ -63,7 +63,7 @@ Waiting for approval or help is nonterminal. Model/tool failures may be retryabl
 
 ## Six-lesson progression
 
-Each lesson should take roughly 45 minutes: 8 minutes of explanation, 5 minutes of demonstration/prediction, 25 minutes of coding, and 7 minutes of verification. This is a rehearsal budget, not a promise before the code is written.
+The required edits are intentionally small. Typing the code alone will not fill a day for experienced engineers, and stretching it would weaken the course. Rehearse each 45-minute lesson with roughly 10–15 minutes of engineering discussion, 10–20 minutes of live coding, and 10–15 minutes of trace inspection and failure experiments. Use the advanced challenge when a group moves faster. The conceptual sections cite primary research and documentation, then explain Scott's design position separately from the source claim.
 
 | Lesson | Student work | Visible proof |
 | --- | --- | --- |
@@ -72,7 +72,9 @@ Each lesson should take roughly 45 minutes: 8 minutes of explanation, 5 minutes 
 | 3. Wait for the world | Introduce event correlation, durable waits, timeouts, fresh state on wakeup, and recovery verification | Stop health events, resume them, and see the run wait instead of spin |
 | 4. Put a human in control | Gate disruptive actions, persist exact proposals, handle approval/rejection/expiry, revalidate before execution | Approve after an app restart; reject or expire another proposal |
 | 5. Make retries safe | Demonstrate the side-effect/checkpoint gap, implement action idempotency, add run bounds and cancellation | Lose a response after a successful action; recover without repeating the effect |
-| 6. Run an incident drill | Add a small new policy/tool or scenario with a complete reference solution; diagnose it from the trace | Handle an unfamiliar incident and explain the final report and run history |
+| 6. Run an incident drill | Route model-selected help through the inbox, then wait for independent recovery evidence | Handle an external outage and explain the final report and run history |
+
+The [advanced lab](../lessons/advanced-lab/index.md) is a professional-level extension for fast groups and the capstone discussion. Students write outcome and trajectory checks before trials, collect normal/lost-response/approval traces, attack one assumption in the harness, and defend a measured design change. This deepens AI engineering without adding required dashboard or integration code. If rehearsal shows the six live segments are still short, devote the saved time to paired evaluation and design review rather than more scaffolding.
 
 Keep observability present from the first lesson. Treat context management as selecting the evidence needed for the next decision. Explain queueing and concurrency at the relevant execution boundary; do not build an extra queue system.
 
@@ -115,7 +117,7 @@ Build a complete reference app to discover the architecture, then construct a de
 
 Keep starter contracts compatible across checkpoints so the UI can show unavailable features without requiring students to change UI code. The final demo should run in a separate prepared copy, so switching to the starter cannot destroy a live demo or its data.
 
-Author explanations manually and derive code examples from actual checkpoint code. Validate the ordered edits against the start and solution snapshots. Full details are in [lesson-authoring.md](./lesson-authoring.md).
+Author explanations manually in `scripts/lesson-prose/` and derive code examples from actual checkpoint code with `npm run notes:generate`. Validate displayed edits with `npm run notes:check`, then build the docs. Full details are in [lesson-authoring.md](./lesson-authoring.md).
 
 ## Preparation sequence
 
