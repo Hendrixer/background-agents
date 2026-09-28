@@ -38,7 +38,7 @@ export async function setRun(runId: string, status: string, waitReason: string |
 }
 
 export async function setIteration(runId: string, iteration: number) {
-  await db.update(runs).set({ iteration, status: "running", waitReason: null, updatedAt: new Date() }).where(eq(runs.id, runId));
+  await db.update(runs).set({ iteration, status: "running", waitReason: null, updatedAt: new Date() }).where(and(eq(runs.id, runId), inArray(runs.status, ["running", "waiting", "needs_approval", "needs_help"])));
 }
 
 export async function cancelRun(runId: string) {
@@ -104,6 +104,9 @@ export async function getProposal(proposalId: string) {
 export async function decideProposal(proposalId: string, status: "approved" | "rejected", reason?: string) {
   const proposal = await getProposal(proposalId);
   if (proposal.status !== "pending") return proposal;
+  if (proposal.action === "request_help" && status === "approved" && !reason?.trim()) {
+    throw new Error("An answer is required before the agent can continue");
+  }
   const [updated] = await db.update(approvals).set({ status, reason, decidedAt: new Date() }).where(and(eq(approvals.id, proposalId), eq(approvals.status, "pending"))).returning();
   if (!updated) return getProposal(proposalId);
   await addTimeline(proposal.labId, "approval", `${proposal.action.replaceAll("_", " ")} ${status}`, { proposalId, reason }, proposal.runId);

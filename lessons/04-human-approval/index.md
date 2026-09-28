@@ -7,13 +7,21 @@ Start: `lesson-4` · Finished solution: `lesson-5`
 
 ## Open and predict
 
-Reset **Faulty release** and start health/log events at **1/sec**. Show that the model can select `rollback_release` on the current branch. Ask who must own permission for that action.
-
-Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.
+Reset **Faulty release** and start health/log events at **1/sec**. On this branch, the model can select `rollback_release` and the harness executes it directly. Who should have authority for that action, and what information would you want in your inbox before approving it?
 
 ## The idea
 
-An approval is a persisted proposal with exact input and an expiry. The workflow waits for the decision event, reads the saved decision after wakeup, and rechecks the release before acting. If the condition changed, old approval is stale. Rejection and expiry are terminal escalations, not silent retries.
+The model can notice that a release looks faulty. That is different from having authority to roll it back. I want the agent to do the investigation for me and then reach me at the point where my judgment matters. Human-in-the-loop is not a failure fallback bolted onto an autonomous system; for many useful agents, it is the intended middle of the workflow.
+
+Think of the approval panel as the beginning of an **agent inbox**. An inbox item should tell me what the agent wants to do, why, what exact state it expects, and when the request expires. I should be able to approve, reject, or give the agent information without holding a live chat open. The agent can wait while I am away, and I can respond when I have enough context. This is one reason I believe background agents can multiply productivity without asking us to give up control.
+
+The sequence matters. First persist the proposal, including the expected release. Then wait for a decision event correlated to that proposal. After waking, read the stored decision because a notification might arrive early or be missed. If the person rejects or the proposal expires, the run escalates. If they approve, read the service again before executing: an approval for `v2-bad` should not authorize a rollback of some later release. [Inngest's HITL guide](https://www.inngest.com/docs/ai-patterns/human-in-the-loop) uses the same durable propose–wait–resume pattern and explains event correlation.
+
+The model still chooses `rollback_release` as the next action. The harness turns that choice into a proposal rather than a tool call. That is the authority boundary. The model may be wrong about the diagnosis; the human may be wrong too; but the system now exposes the decision with context and an audit trail. Read-only inspections can proceed without approval, while disruptive actions stop at the gate.
+
+We will test the part that is hardest to fake in a chat demo: stop the agent endpoint while the approval is pending, respond through the UI, and restart the endpoint. The proposal and decision live in PostgreSQL; the workflow history lives in Inngest. Neither depends on the original browser request still being open.
+
+As you code, ask whether “approved” is enough by itself. The recheck answers no: authorization is for a particular action under particular conditions, not a blank check for any future state.
 
 ## Live coding
 
@@ -23,7 +31,7 @@ These code blocks are the exact changes between the start and solution branches.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Import the supplied proposal storage helpers. They persist the exact request and human decision in PostgreSQL.
 
 ```diff
  import { activeLab, addTimeline } from "./lab-data";
@@ -36,7 +44,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Insert the rollback gate after `actionId` is computed and before `execute-action`. Read the proposal after every wakeup, handle rejection or expiry, and recheck the release before executing.
 
 ```diff
        }

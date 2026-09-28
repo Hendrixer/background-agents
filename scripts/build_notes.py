@@ -6,26 +6,23 @@ project = Path(__file__).resolve().parent.parent
 lessons = [
     dict(slug='01-goal-and-harness', title='Give the agent a goal', time='09:30–10:15', start='lesson-1', solution='lesson-2',
          promise='A goal becomes a sequence of observed state, model-selected action, harness validation, and tool execution.',
-         opening='Reset **Feature rollout**, select **health** and **log**, set **2/sec**, and start events. Show the degraded checkout service. Ask: “If I close the browser now, who owns the work?” The browser is only a control surface; the run is triggered by an event.',
-         talk='A chat agent is usually organized around a request/response turn. This run has a goal and its own lifecycle. The model proposes one action at a time; the harness owns state lookup, action execution, the decision cap, and completion. Today the whole loop is deliberately one opaque Inngest step so the next lesson has a concrete failure to fix.',
+         opening='Reset **Feature rollout**, select **health** and **log**, set **2/sec**, and start events. Checkout is degraded. Before we code, answer this: if you close the browser after giving the agent a goal, who owns the work? What would have to remain true for the agent to finish?',
          edit='Replace the placeholder handler inside `incidentAgent`. The imports and `executeAction` helper above it already exist and stay. Read the `-` lines as removals and the `+` lines as code to type.',
-         verify='Start an agent from the UI with the supplied goal. It should inspect logs and changes, disable the feature, then complete once a healthy observation arrives. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.',
-         experiment='Stop the agent process while that single step is running, then restart it. Predict which model calls or tools might run again. The loop has no internal checkpoints, so a retry can replay earlier work. Do this only on a fresh lab instance.',
+         verify='Start an agent from the UI with the supplied goal. Watch which action your model selects; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.',
+         experiment='On a fresh lab instance, stop the agent process while that single step is running, then restart it. Which model calls or tools could run again? The loop has no internal checkpoints, so a retry can replay earlier work.',
          mistakes='If it ends at the decision limit, confirm health events are streaming. If the model key is missing, set `OPENAI_API_KEY` and `OPENAI_MODEL` in `.env` and restart only the agent process.',
          extension='Change the goal to request a different final report and inspect which parts of the harness still stay deterministic.'),
     dict(slug='02-durable-execution', title='Make progress durable', time='10:30–11:15', start='lesson-2', solution='lesson-3',
          promise='Each costly or effectful operation becomes a named Inngest step whose result survives a process restart.',
-         opening='Show the `whole-agent-loop` trace from lesson 1. Ask: “If the process dies after disabling the feature but before the step returns, what can the retry know?” Then reset Feature rollout.',
-         talk='Inngest reruns function code to reconstruct a workflow and reuses completed step results. A `step.run` boundary is therefore both a replay boundary and a debugging landmark. Keep step IDs stable and unique for each loop cycle. A durable sleep releases the process while the run is waiting.',
+         opening='Open the `whole-agent-loop` trace from lesson 1. If the process dies after disabling the feature but before that step returns, what can the retry know? Reset **Feature rollout** before we change the code.',
          edit='In `server/agent-workflow.ts`, replace the single opaque `step.run("whole-agent-loop")` with the shown loop. The helper and function options remain. This is one larger refactor; typecheck after the whole block is in place.',
-         verify='Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only `npm run dev:agent` while the run sleeps; the lab and Inngest Dev Server stay up.',
-         experiment='While a run sleeps, stop only the agent endpoint and restart it. Ask students to identify which step outputs were replayed from history rather than redoing a tool call. The Inngest Dev Server used in this workshop is local and should remain running.',
+         verify='Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.',
+         experiment='If you started everything with `npm run dev`, stop that combined command first and restart `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. While a run sleeps, restart only the agent terminal. Identify which step outputs came from history and which callback actually ran. Keep the local Inngest Dev Server running throughout this experiment.',
          mistakes='Do not restart the Inngest Dev Server for this demo. If “duplicate step ID” appears, check that the ID contains `cycle`; repeated static IDs inside a loop are ambiguous.',
          extension='Add one more read-only inspection action and decide whether its result belongs inside its own step.'),
     dict(slug='03-events-and-waiting', title='Wait for the world', time='11:30–12:15', start='lesson-3', solution='lesson-4',
          promise='The run pauses on correlated events, wakes up, reloads state, and completes only after sustained fresh recovery.',
-         opening='With Feature rollout reset, stop the event stream before starting an agent. The current code polls every two seconds. Ask: “What state should the agent trust after it wakes?”',
-         talk='The event is a wakeup signal, not the truth. Match it to this lab instance, then read the latest state again. A timeout is a reconciliation opportunity when delivery is missed. Completion is owned by `hasRecovered`: three recent healthy observations spread across time, so one green sample cannot prematurely end the run.',
+         opening='Reset **Feature rollout** and stop the event stream before starting an agent. Our current code polls every two seconds. When an event wakes the agent later, should it trust that event payload or read the service again?',
          edit='First add `hasRecovered` in `server/agent-data.ts`, then change the completion check and each poll in `server/agent-workflow.ts`. Keep the surrounding status updates.',
          verify='Start the run with events stopped. The UI should show `waiting`. Emit one health event: the run wakes but must not complete. Resume the stream; after remediation and three fresh healthy observations, it completes and writes a report.',
          experiment='Stop events again while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Restart events and watch it resume.',
@@ -33,8 +30,7 @@ lessons = [
          extension='Change the recovery predicate to require a longer window and discuss how demo time and production signal quality trade off.'),
     dict(slug='04-human-approval', title='Put a human in control', time='13:15–14:00', start='lesson-4', solution='lesson-5',
          promise='A model can propose a rollback, but only an explicit human decision can authorize it.',
-         opening='Reset **Faulty release** and start health/log events at **1/sec**. Show that the model can select `rollback_release` on the current branch. Ask who must own permission for that action.',
-         talk='An approval is a persisted proposal with exact input and an expiry. The workflow waits for the decision event, reads the saved decision after wakeup, and rechecks the release before acting. If the condition changed, old approval is stale. Rejection and expiry are terminal escalations, not silent retries.',
+         opening='Reset **Faulty release** and start health/log events at **1/sec**. On this branch, the model can select `rollback_release` and the harness executes it directly. Who should have authority for that action, and what information would you want in your inbox before approving it?',
          edit='In `server/agent-workflow.ts`, add the imports and the rollback gate immediately after `actionId` is computed. The final `execute-action` call must remain below the gate.',
          verify='Start an agent on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the UI. The rollback should happen once and the run should verify recovery. Reset and repeat with Reject to see `escalated`.',
          experiment='Leave a proposal pending while the agent process is down, approve, then restart it. The decision is in PostgreSQL and the wait reconciles even if the notification arrived before the endpoint was ready. For an expiry rehearsal, temporarily shorten the proposal expiry in `server/agent-data.ts` and reset afterward.',
@@ -42,8 +38,7 @@ lessons = [
          extension='Add a second gated action and decide whether it should require the same approval shape or a different one.'),
     dict(slug='05-safe-retries', title='Make retries safe', time='14:15–15:00', start='lesson-5', solution='lesson-6',
          promise='A tool response can disappear after its effect commits; the same action ID must return the prior result instead of repeating the effect.',
-         opening='Reset **Feature rollout**, arm **Lose the next tool response**, start health/log events, then start an agent. The first call returns 503 after the database commit. Ask: “Did the action happen, and how can the retry find out?”',
-         talk='Inngest checkpoints after `step.run` returns. Between the external effect and that checkpoint is an uncertainty window. The operations API owns idempotency using a stable action ID inside a database transaction. Cancellation is another durable event and the loop also reads the run status at a safe boundary.',
+         opening='Reset **Feature rollout**, arm **Lose the next tool response**, start health/log events, then start an agent. The first tool call returns 503 after its database commit. Did the action happen? What information would let a retry find out?',
          edit='Make the two focused edits in `server/agent-workflow.ts`, then the two edits inside `applyAction` in `server/lab-data.ts`. The rest of the simulator code is supplied. The ID already passed from the workflow is `runId:iteration:action`.',
          verify='Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the dashboard timeline and `actions` table, the matching action ID appears once. Use Cancel run while a workflow waits and confirm it stops.',
          experiment='Before adding the `applyAction` edits, the retry inserts a second action row because the server makes a new UUID. After the edits, the first response can still be lost, but the second request returns the saved result. Reset the scenario between the two runs.',
@@ -51,14 +46,44 @@ lessons = [
          extension='Consider how you would carry this key through a third-party API that supports an idempotency header.'),
     dict(slug='06-incident-drill', title='Run an incident drill', time='15:15–16:00', start='lesson-6', solution='complete',
          promise='The agent asks for help when its tools cannot fix an external dependency, then waits for a recovery signal and reports the outcome.',
-         opening='Reset **Upstream outage** and start health, log, and dependency events. Ask: “Would another local rollback change the payment gateway?” The agent needs a human answer and a new external state, not more local tool calls.',
-         talk='`request_help` is a model-selected action that the harness turns into a nonterminal human gate. Once answered, the run waits for the dependency to recover. It does not treat an answer as proof of service health. A fresh observation and the deterministic recovery predicate still decide completion.',
+         opening='Reset **Upstream outage** and start health, log, and dependency events. Would another local rollback repair the payment gateway? If the agent asks for help, what should happen after we answer but before the dependency actually recovers?',
          edit='In `server/agent-workflow.ts`, add the external-wait branch before `chooseAction`, then let `request_help` share the persisted proposal path. The rollback recheck still applies only to rollback.',
          verify='Start the Upstream outage run. Answer the agent in the UI, then click **Simulate upstream recovery**. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and timeline aloud to reconstruct the run.',
          experiment='Answer the help request but do not recover the dependency. The run should remain waiting through multiple timeouts. Then recover it; no second help proposal or local rollback should be needed. Reset and try `Cannot help` to see escalation.',
          mistakes='If the model keeps asking for help, confirm the saved human decision is `approved` and inspect `agentState.humanDecisions`. If the service is healthy but completion has not happened, ensure health events continue long enough for three fresh samples.',
-         extension='Have students propose one different terminal policy, such as an explicit unresolved report after a configured deadline, and identify which part belongs to the model versus the harness.'),
+         extension='Propose one different terminal policy, such as an explicit unresolved report after a configured deadline. Identify which part belongs to the model versus the harness.'),
 ]
+
+edit_cues = {
+    1: [
+        'Replace the placeholder handler inside `incidentAgent`. Follow the loop in order: verify the lab, observe state, check completion, ask the model for one action, record it, execute it, and repeat. The imports and `executeAction` helper above already exist.',
+    ],
+    2: [
+        'Lift the loop out of `whole-agent-loop` so Inngest can checkpoint its meaningful operations separately. Notice the unique `${cycle}` suffix on every repeated step ID. Replace this handler as one edit, then typecheck.',
+    ],
+    3: [
+        'Add `hasRecovered` after the `AgentState` type. This is our deterministic definition of “done”; the model does not get to relax it.',
+        'Import the new predicate into the workflow before using it.',
+        'Replace the one-sample success condition with `hasRecovered(state)`. The report runs only after that check passes.',
+        'When we have no observation or are waiting on enough healthy samples, suspend on a lab-correlated event instead of polling.',
+        'Use the same event-driven wait after an early `complete` proposal and after an operation. The next loop reads current state again.',
+    ],
+    4: [
+        'Import the supplied proposal storage helpers. They persist the exact request and human decision in PostgreSQL.',
+        'Insert the rollback gate after `actionId` is computed and before `execute-action`. Read the proposal after every wakeup, handle rejection or expiry, and recheck the release before executing.',
+    ],
+    5: [
+        'Register a cancellation event that must match this run ID. Inngest can stop a sleeping run at a step boundary.',
+        'Read the persisted run status before the next cycle does work. This makes the application state agree with cancellation.',
+        'At the start of `applyAction`, return a saved result when the same action ID has already committed.',
+        'Store the caller-provided action ID instead of a fresh UUID. If another request wins the insert, read and return its result without applying the effect again.',
+    ],
+    6: [
+        'After an answered help request, wait for the external dependency to change. Re-read state on the next cycle rather than spending another model decision.',
+        'Route `request_help` into the persisted human proposal path. The question comes from the model decision; rollback carries an expected release.',
+        'An approved help answer is not a rollback. Continue the loop without running the rollback-specific recheck or executing a local tool.',
+    ],
+}
 
 def diff_blocks(start, solution):
     output = subprocess.check_output(['git', 'diff', '--unified=3', start, solution, '--', 'server/agent-data.ts', 'server/agent-workflow.ts', 'server/lab-data.ts'], cwd=project, text=True)
@@ -85,26 +110,27 @@ for number, lesson in enumerate(lessons, 1):
     output = project / 'lessons' / lesson['slug'] / 'index.md'
     output.parent.mkdir(parents=True, exist_ok=True)
     blocks = diff_blocks(lesson['start'], lesson['solution'])
+    concept = (project / 'scripts' / 'lesson-prose' / f'{number:02}.md').read_text().strip()
     content = [f"# {number:02d} · {lesson['title']}", '',
                f"**{lesson['time']} · 45 minutes**  ",
                f"Start: `{lesson['start']}` · Finished solution: `{lesson['solution']}`", '',
                f"**Outcome:** {lesson['promise']}", '',
                '## Open and predict', '', lesson['opening'], '',
-               'Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.', '',
-               '## The idea', '', lesson['talk'], '',
+               '## The idea', '', concept, '',
                '## Live coding', '', lesson['edit'], '',
                'These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.', '']
     for index, (file, lines) in enumerate(blocks, 1):
+        cue = edit_cues[number][index - 1]
         if file == 'server/agent-data.ts' and number == 3:
             added = [line[1:] for line in lines if line.startswith('+')]
             while added and not added[-1]:
                 added.pop()
             content += [f'### Edit {index} · `{file}`', '',
-                        'Add this new function immediately after `export type AgentState`. The `recordDecision` function below it stays where it is.', '',
+                        cue + ' The `recordDecision` function below it stays where it is.', '',
                         '```ts', *added, '```', '']
             continue
         content += [f'### Edit {index} · `{file}`', '',
-                    f'Open `{file}` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.', '',
+                    cue, '',
                     '```diff', *lines, '```', '']
     content += ['Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.', '',
                 '## Verify', '', lesson['verify'], '',
