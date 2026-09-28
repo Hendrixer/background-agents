@@ -2,7 +2,7 @@
 
 You now have a working background agent. I want you to treat it as a system you might put in front of an on-call engineer, not as a demo that gets credit for producing a plausible report. The question is: **which claims can the system prove from its state and history, and which claims are still guesses?**
 
-This lab is for teams that finish a lesson early or want a deeper capstone after the incident drill. Use the supplied simulator and your own LLM key. Work in pairs if that makes it easier to compare model behavior. Reset the lab between trials. Keep the Inngest trace, the per-run log on `/agent`, and the server event log on `/events` open.
+This lab is for teams that finish a lesson early or want a deeper capstone after the incident drill. Use the supplied simulator and your own LLM key. Work in pairs if that makes it easier to compare model behavior. Reset the lab between trials. Keep the Inngest trace, the per-run log on `/activity`, and the server event log on `/events` open.
 
 ## 1. Write the contract before running anything
 
