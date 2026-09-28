@@ -19,8 +19,23 @@ const NAV = [
 ] as const;
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const data = await response.json();
+  let response: Response;
+  try {
+    response = await fetch(path, body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    throw new Error("Cannot reach the lab API. Start npm run dev:lab and try again.");
+  }
+  if (!response.headers.get("content-type")?.includes("application/json")) {
+    throw new Error(response.status === 502 || response.status === 503
+      ? "The lab API is offline. Start npm run dev:lab and try again."
+      : `The lab API returned an unexpected response (${response.status}).`);
+  }
+  let data: { error?: string };
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("The lab API returned an incomplete response. Try again.");
+  }
   if (!response.ok) throw new Error(data.error || `Request failed: ${response.status}`);
   return data as T;
 }
