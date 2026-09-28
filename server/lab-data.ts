@@ -145,12 +145,6 @@ export async function emitLabEvent(labId: string, forcedType?: EventType) {
 }
 
 export async function applyAction(labId: string, actionId: string, name: ActionName, input: Record<string, unknown> = {}) {
-  const [prior] = await db.select().from(actions).where(eq(actions.id, actionId)).limit(1);
-  if (prior) {
-    if (prior.labId !== labId) throw new Error("Action ID belongs to a different lab instance");
-    return prior.result;
-  }
-
   return db.transaction(async (tx) => {
     const [lab] = await tx.select().from(labs).where(eq(labs.id, labId)).limit(1);
     if (!lab) throw new Error("Lab instance not found");
@@ -179,12 +173,7 @@ export async function applyAction(labId: string, actionId: string, name: ActionN
         break;
     }
 
-    const [inserted] = await tx.insert(actions).values({ id: actionId, labId, name, input, result }).onConflictDoNothing().returning();
-    if (!inserted) {
-      const [existing] = await tx.select().from(actions).where(eq(actions.id, actionId)).limit(1);
-      if (!existing || existing.labId !== labId) throw new Error("Action ID conflict");
-      return existing.result;
-    }
+    await tx.insert(actions).values({ id: randomUUID(), labId, name, input, result });
 
     if (name === "disable_feature") await tx.update(labs).set({ featureEnabled: false }).where(eq(labs.id, labId));
     if (name === "rollback_release") await tx.update(labs).set({ release: "v1-stable" }).where(eq(labs.id, labId));
