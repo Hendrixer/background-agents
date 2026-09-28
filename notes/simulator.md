@@ -1,101 +1,51 @@
 # Incident lab and simulator contract
 
-Status: proposed starter application specification. These controls are not implemented yet.
+The lab is supplied workshop infrastructure. Students build the agent and harness that operate against it. It is a **simulated** checkout service: scenario rules determine whether it is healthy, and health events create timestamped synthetic observations. The UI never presents those values as real traffic measurements.
 
-## Purpose
+## Operator app
 
-Make background execution visible and repeatable. Scott and students should be able to cause an incident, control incoming events, inspect a run, act on an approval, and demonstrate failure recovery without editing fixture JSON during the lesson.
-
-The simulator is starter infrastructure. Students build the agent and harness that operate against it.
-
-## Main screen
-
-1. **Service:** current health, recent observations, release, feature flags, and recent changes.
-2. **Run:** goal, status, elapsed time, decision/action count, current wait reason, and report.
-3. **Timeline:** events, model-selected actions, policy outcomes, tool results, and run transitions, with IDs visible on expansion.
-4. **Approvals/help:** exact pending proposal, approval or rejection controls, expiry, and any requested input.
-5. **Simulator controls:** scenario, event controls, and expandable failure controls.
-
-Use Inngest's own UI for durable step traces and retry inspection. The lab timeline should explain domain behavior without attempting to recreate the entire Inngest dashboard.
-
-Clearly show that this is a simulated service. Instructor-visible scenario configuration and hidden root-cause information must not be included in the model's observation payload merely because the UI can display them.
-
-## Event controls
-
-| Control | Meaning |
+| Route | Job |
 | --- | --- |
-| Scenario preset | Load a documented incident configuration with a known baseline |
-| Seed | Reproduce generated telemetry and event order; does not make LLM output deterministic |
-| Event types | Choose the permitted telemetry/change event categories |
-| Event rate | Set aggregate events per second with a bounded range and a clear unit |
-| Start | Start the selected background event producer |
-| Stop | Stop future generated events; keep the current run and domain state intact |
-| Emit one | Send one selected event using the normal event ingestion path |
-| Burst | Send a bounded number of events to exercise admission and wakeup behavior |
-| Feed counters | Show emitted and processed counts plus last-event time |
+| `/` | Inbox with approval and help requests, answers, denials, and a pending-count nav badge |
+| `/activity` | Scrollable run list and a connected per-run observe, predict, act, wait, human, and terminal feed |
+| `/events` | Events saved by the lab and sent toward Inngest as wakeup hints |
+| `/admin` | Workshop-only scenario and event controls |
 
-Keep emission rate separate from simulated service health and timeouts. Increasing the event rate must not silently change a 30-second health window into three seconds or start a new LLM call for every observation.
+The Activity feed describes the agent's decisions and effects. The Events page describes what the simulated service emitted. Inngest's Dev Server shows durable step and retry traces. These are three different views of one run.
 
-The normal admission rule should allow one active incident run per service/scenario instance. Further telemetry updates the authoritative state and may wake the active run; it does not create a new incident agent each time. Define the actual concurrency/correlation mechanism in the reference implementation and test it under a burst.
+## Simulator sequence
 
-Stopping event generation should never make the service appear recovered. The goal predicate must reject stale observations and require enough evidence over the configured window.
+1. Create a Feature rollout, Faulty release, or Upstream outage scenario. Reset gives it a new `labId`; the dashboard then focuses on that instance.
+2. Start **one** agent run with a goal. A service event does not start another run.
+3. Compose a finite batch: 1–100 events, an interval from 100 ms to 10 seconds, and either one event type or a mix whose percentages sum to 100.
+4. Send the batch. The lab saves a plan and emits on the server even if the browser closes. The UI shows sent/total progress and can stop an unfinished batch.
 
-## Distinct lifecycle controls
+One health event is a good wakeup probe. It is not sufficient evidence of sustained recovery. Several spaced health observations are needed for the course completion predicate. The plan interval changes when evidence arrives; it does not shorten the recovery window.
 
-- **Stop events:** stop the producer only.
-- **Cancel run:** request a harness lifecycle transition; prevent subsequent actions after cancellation is observed. An already committed side effect is not undone.
-- **Reset scenario:** create a fresh scenario instance and baseline, with new correlation identifiers. Clearly disclose any active-run cancellation required by the reset. Preserve old run history for inspection.
-- **Restart agent:** use the documented process command/terminal to stop and restart only the student's agent endpoint. Do not implement unrestricted shell execution behind a UI button.
+The lab persists every event before trying to notify Inngest. `lab/observation` is a doorbell for a waiting run, correlated by `labId`. A run reads current service state after waking. Events sent before a wait is established may not wake that wait, so the harness also re-reads on start and timeout. Notification delivery and durable state are distinct concerns.
 
-The simulator runs server-side. Browser refresh and closing the tab must not stop it. Keep its process independent of the agent process so crash demonstrations have a meaningful external world to resume into.
+## Lifecycle and safety controls
 
-## Failure controls
+- **Stop batch** halts future event production. It does not repair the service or cancel the run.
+- **Cancel run** stops future workflow steps once cancellation is observed. It does not undo a committed effect.
+- **Create scenario** makes a new `labId`, preserving old database history while focusing the UI on the new scenario.
+- **Restart agent** means restarting only `npm run dev:agent`, leaving the lab server and Inngest Dev Server running.
+- **Lose the next tool response** commits an operation and returns a one-time 503, demonstrating the acknowledgement gap and need for idempotency at the effect boundary.
+- **Simulate upstream recovery** changes the external dependency state; the agent still needs fresh health observations before completing.
 
-Prioritize a small set that supports the six lessons:
+Approvals bind to a saved proposal and its scenario/run. The human's decision is stored before a wakeup notification. After approval, the harness reads current state and rechecks the release before rollback. A help answer provides information; it cannot by itself prove the service recovered.
 
-| Fault | Demonstrates |
-| --- | --- |
-| Fail the next tool attempt before its effect | A transient failure and retry |
-| Apply an effect, then fail before acknowledgement/checkpoint | Why retries need operation idempotency |
-| Duplicate a selected event | Delivery duplication versus starting duplicate work |
-| Change the service while approval is pending | Revalidation of an approved proposal |
-| Stop health observations | Durable waiting, timeout behavior, and stale state |
-| Approve, reject, or let approval expire | Distinct human decision outcomes |
+## Repeatable drills
 
-Failure switches should target a selected operation or consume a single persisted fault token. A “fail next attempt” switch must not reset itself on every retry and accidentally fail forever.
+| Lesson | Scenario and events | Expected evidence |
+| --- | --- | --- |
+| Goal and harness | Feature rollout, 12 health events at 1 second | Model chooses an action; harness observes and completes |
+| Durability | Feature rollout, 12 health events at 1 second | Separate Inngest step checkpoints; restart only agent endpoint |
+| Waiting | Feature rollout, start with no batch; send 1, then 12 health events | Visible wait, correlated wake, sustained recovery check |
+| Approval | Faulty release, health events at 1 second | Inbox gate, explicit decision, recheck, one rollback |
+| Safe retries | Feature rollout, response-loss fault, health events | One committed action ID despite retry attempts |
+| Incident drill | Upstream outage, mixed batch then post-recovery health batch | Help request, external recovery, fresh evidence, report |
 
-Keep malformed/stale approval injection under explicit test controls if included. The normal UI must send valid, correlated decisions.
+The seed makes the simulated world repeatable; it does not make model output deterministic. Judge both the final state and the trajectory. A safe escalation can be correct when local tools cannot fix the dependency. A good-looking report after an unauthorized effect is a failure.
 
-## Approval semantics
-
-Persist an immutable proposal containing its action ID, run/scenario association, tool name, arguments, and relevant preconditions. The UI approves that proposal, not an unspecified future action the model might choose.
-
-Persist the decision before emitting its notification. Treat notifications as wakeups, not the sole record of the decision. The reference build must cover an approval arriving before wait registration, duplicate decisions, old approvals, expiry, and changed state.
-
-A state read followed by a wait still has a race. Choose and test an explicit reconciliation/wait-registration strategy in the implementation; do not claim that the database alone eliminates this race.
-
-After a wakeup, the harness retrieves the decision and current domain state, verifies applicability, and either executes the approved action or requests a new decision/proposal. A changed action requires new approval.
-
-## Repeatable demonstration recipes
-
-Each lesson's notes should contain its exact scenario ID, seed, event rate, injected fault, goal, expected transitions, and reset steps.
-
-1. **Ordinary investigation:** unhealthy service → useful investigation → safe change → fresh recovery observations → report → completed.
-2. **App restart:** complete at least one durable step → stop agent process → continue simulator events → restart agent → recover without re-running checkpointed work.
-3. **Waiting:** stop health events → run waits → emit new observations → run reassesses current state.
-4. **Approval:** proposed disruptive action → waiting for approval → restart app → approve the same proposal → revalidate → act.
-5. **Ambiguous result:** operation commits → simulated acknowledgement failure → retry with the same action identity → one domain effect.
-6. **New information:** change state while approval is pending → approve old proposal → harness detects changed preconditions and reassesses.
-
-A seeded scenario fixes the external evidence, not the model's exact tool sequence or wording. Assertions should target state transitions, permission enforcement, and final domain outcomes. Notes should describe acceptable decision variation.
-
-Before a model call, show a short evidence summary and the allowed action list in the inspector. Show the selected action and relevant results afterward. Do not depend on exposing hidden chain-of-thought to explain a run.
-
-## Implementation scope limits
-
-- One service and one active incident per scenario instance in the core workshop.
-- A small fixed catalog of tools, scenarios, and event types.
-- Bounded event rates, burst sizes, action count, and run duration.
-- Prebuilt local persistence and reset utilities; no database migration lesson.
-- Configure shorter demo waits explicitly and show their units. Do not alter global clocks or imply that LLM response times are deterministic.
-- No external messages, cloud deployments, real production operations, or extra third-party accounts in required exercises.
+The core lab has one active scenario and a small fixed tool and event catalog. It does not demonstrate multi-tenant admission, production webhooks, distributed tracing, or remote deployment. The event log, action log, and run history remain in PostgreSQL; the dashboard returns bounded recent slices. A production implementation should also define retention, compaction, and behavior when notification delivery fails for longer than the wait timeout.
