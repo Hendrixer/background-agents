@@ -46,7 +46,7 @@ Keep arbitrary code execution, patch generation, GitHub integration, deployment,
 
 | Component | Responsibility | Teaching treatment |
 | --- | --- | --- |
-| Lab server and UI | Service simulator, controls, event feed, local domain persistence, approvals interface, report display | Starter code |
+| Lab server and UI | Operator overview, service dashboard, server event log, per-run agent log, actionable inbox, report display, and a separate simulator admin route | Starter code |
 | Agent process | State hydration, model decision, action validation, execution, completion rules | Live coded |
 | Inngest Dev Server | Durable execution and development inspection | Introduced early and used throughout |
 | Notes site | Local Markdown lesson browser | Starter tooling |
