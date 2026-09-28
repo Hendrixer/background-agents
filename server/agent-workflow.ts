@@ -1,5 +1,5 @@
 import { activeLab, addTimeline } from "./lab-data";
-import { agentState, getRun, recordDecision, setIteration, setRun } from "./agent-data";
+import { agentState, getRun, hasRecovered, recordDecision, setIteration, setRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
 
@@ -42,7 +42,7 @@ export const incidentAgent = inngest.createFunction(
 
       const state = await step.run(`observe-state-${cycle}`, () => agentState(labId));
 
-      if (state.service.healthy && state.observations.length > 0) {
+      if (hasRecovered(state)) {
         const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
         await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
         return { report };
@@ -50,7 +50,7 @@ export const incidentAgent = inngest.createFunction(
 
       if (state.service.healthy || state.observations.length === 0) {
         await step.run(`wait-status-${cycle}`, () => setRun(runId, "waiting", "Waiting for fresh health observations"));
-        await step.sleep(`poll-for-health-${cycle}`, "2s");
+        await step.waitForEvent(`wait-for-health-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
         continue;
       }
 
@@ -62,14 +62,14 @@ export const incidentAgent = inngest.createFunction(
 
       if (decision.action === "complete") {
         await step.run(`reject-early-completion-${cycle}`, () => addTimeline(labId, "policy", "Completion rejected: recovery is not verified", {}, runId));
-        await step.sleep(`poll-after-early-completion-${cycle}`, "2s");
+        await step.waitForEvent(`wait-after-early-completion-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
         continue;
       }
 
       const actionId = `${runId}:${iteration}:${decision.action}`;
       await step.run(`execute-action-${cycle}`, () => executeAction(labId, actionId, decision.action));
       await step.run(`wait-status-after-action-${cycle}`, () => setRun(runId, "waiting", "Waiting for the service to report its new state"));
-      await step.sleep(`poll-after-action-${cycle}`, "2s");
+      await step.waitForEvent(`wait-after-action-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
     }
 
     await step.run("stop-at-limit", () => setRun(runId, "escalated", "Decision limit reached"));
