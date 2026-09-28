@@ -50,7 +50,7 @@ export async function cancelRun(runId: string) {
 export async function agentState(labId: string) {
   const lab = await findLab(labId);
   const [recentObservations, recentEvents, recentActions, recentApprovals] = await Promise.all([
-    db.select().from(observations).where(eq(observations.labId, labId)).orderBy(desc(observations.createdAt)).limit(8),
+    db.select().from(observations).where(eq(observations.labId, labId)).orderBy(desc(observations.createdAt)).limit(12),
     db.select().from(events).where(eq(events.labId, labId)).orderBy(desc(events.createdAt)).limit(8),
     db.select().from(actions).where(eq(actions.labId, labId)).orderBy(desc(actions.createdAt)).limit(8),
     db.select().from(approvals).where(eq(approvals.labId, labId)).orderBy(desc(approvals.createdAt)).limit(4),
@@ -69,12 +69,16 @@ export async function agentState(labId: string) {
 export type AgentState = Awaited<ReturnType<typeof agentState>>;
 
 export function hasRecovered(state: AgentState) {
-  const lastThree = state.observations.slice(0, 3);
-  if (lastThree.length < 3 || !lastThree.every((item) => item.healthy)) return false;
-  const newest = new Date(lastThree[0].at).getTime();
-  const oldest = new Date(lastThree[2].at).getTime();
-  if (Date.now() - newest > 20_000) return false;
-  return newest - oldest >= 1_500;
+  let healthySamples = 0;
+  let oldestHealthyAt = 0;
+  for (const item of state.observations) {
+    if (!item.healthy) break;
+    healthySamples += 1;
+    oldestHealthyAt = new Date(item.at).getTime();
+  }
+  if (healthySamples < 3) return false;
+  const newest = new Date(state.observations[0].at).getTime();
+  return Date.now() - newest <= 20_000 && newest - oldestHealthyAt >= 1_500;
 }
 
 export async function recordDecision(labId: string, runId: string, iteration: number, action: string, reason: string) {
