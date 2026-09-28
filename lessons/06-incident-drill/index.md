@@ -36,7 +36,7 @@ My opinion is that the product is the *continuing relationship* between a person
 
 ## See it in the lab
 
-Reset **Upstream outage** and start health, log, and dependency events. The local controls cannot repair the payment gateway. Follow the run through the agent inbox, then leave the dependency unavailable after answering so you can see the difference between receiving information and reaching the goal.
+On `/admin`, reset **Upstream outage** and start health, log, and dependency events. The local controls cannot repair the payment gateway. Follow the run through the inbox on `/`, then leave the dependency unavailable after answering so you can see the difference between receiving information and reaching the goal.
 
 ## Live coding
 
@@ -91,7 +91,7 @@ An approved help answer is not a rollback. Continue the loop without running the
          if (approval.status !== "approved") continue;
 +        if (decision.action === "request_help") continue;
  
-         const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId));
+         const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId, runId));
          if (fresh.service.release !== input.expectedRelease) {
 ```
 
@@ -99,7 +99,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Upstream outage run. Answer the agent in the UI, then click **Simulate upstream recovery**. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and timeline aloud to reconstruct the run.
+Start the Upstream outage run from `/agent`. Answer the agent in the inbox on `/`, then click **Simulate upstream recovery** on `/admin`. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and `/agent` activity aloud to reconstruct the run.
 
 ## Break it on purpose
 
