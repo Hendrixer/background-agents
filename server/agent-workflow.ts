@@ -57,6 +57,13 @@ export const incidentAgent = inngest.createFunction(
         continue;
       }
 
+      const unresolvedHelp = state.humanDecisions.some((item) => item.action === "request_help" && item.status === "approved");
+      if (!state.service.upstreamHealthy && unresolvedHelp) {
+        await step.run(`wait-upstream-status-${cycle}`, () => setRun(runId, "waiting", "Waiting for the external dependency to recover"));
+        await step.waitForEvent(`wait-for-upstream-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
+        continue;
+      }
+
       const decision = await step.run(`choose-action-${cycle}`, () => chooseAction(run.goal, state));
       decisions += 1;
       const iteration = decisions;
@@ -70,8 +77,8 @@ export const incidentAgent = inngest.createFunction(
       }
 
       const actionId = `${runId}:${iteration}:${decision.action}`;
-      if (decision.action === "rollback_release") {
-        const input = { expectedRelease: state.service.release };
+      if (decision.action === "rollback_release" || decision.action === "request_help") {
+        const input = decision.action === "rollback_release" ? { expectedRelease: state.service.release } : { question: decision.detail };
         const proposalId = await step.run(`propose-action-${cycle}`, async () => {
           const proposal = await proposeAction(labId, runId, actionId, decision.action, input);
           return proposal.id;
@@ -90,6 +97,7 @@ export const incidentAgent = inngest.createFunction(
           return;
         }
         if (approval.status !== "approved") continue;
+        if (decision.action === "request_help") continue;
 
         const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId));
         if (fresh.service.release !== input.expectedRelease) {
