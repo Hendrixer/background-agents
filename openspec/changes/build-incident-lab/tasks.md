@@ -12,6 +12,6 @@
 
 ## 3. Teaching UI and setup
 
-- [x] 3.1 Build the charcoal dashboard with service, controls, timeline, approvals, run state, and report panels; verify in a browser at desktop and podium widths.
+- [x] 3.1 Build the inbox-first operator app with separate service, agent-run, server-event, and simulator routes; verify the request reading pane, response controls, and per-run activity log in a browser.
 - [x] 3.2 Add a separate Inngest endpoint process scaffold and local VitePress notes site; verify lab stays up when only the agent process restarts and notes serve locally.
 - [x] 3.3 Document startup, local database, environment keys, and simulator reset; verify a clean checkout can follow the documented commands.
