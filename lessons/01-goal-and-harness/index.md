@@ -38,7 +38,7 @@ If the correct remediation could be expressed completely as `if release === "v2-
 
 ## See it in the lab
 
-On `/admin`, reset **Feature rollout**, select **health** and **log**, set **2/sec**, and start events. Checkout is degraded before any agent run exists. The changing service is the environment our agent must observe; the browser is only a way to start and inspect the work.
+On `/admin`, create **Feature rollout**, start one agent run, then send a batch of 12 health events one second apart. Checkout is degraded before the run exists. The changing service is the environment our agent must observe; the browser is only a way to start and inspect the work.
 
 ## Live coding
 
@@ -102,7 +102,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start an agent from `/agent` with the supplied goal. Watch which action your model selects; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.
+Start an agent from `/admin` with the supplied goal. Watch which action your model selects in `/activity`; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.
 
 ## Break it on purpose
 
@@ -116,6 +116,6 @@ Draw a four-column authority map for **model**, **harness**, **service state**, 
 
 Your solution is `lesson-2`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 1 progress"`, then `git switch lesson-2`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 
-**Common mistake:** If it ends at the decision limit, confirm health events are streaming. If the model key is missing, set `OPENAI_API_KEY` and `OPENAI_MODEL` in `.env` and restart only the agent process.
+**Common mistake:** If it ends at the decision limit, send another health-event batch. If the model key is missing, set `OPENAI_API_KEY` and `OPENAI_MODEL` in `.env` and restart only the agent process.
 
 **Optional extension:** Change the goal to request a different final report and inspect which parts of the harness still stay deterministic.
