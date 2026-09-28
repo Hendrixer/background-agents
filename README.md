@@ -77,4 +77,4 @@ Each lesson branch contains the previous lesson's solution and the current lesso
 
 Start at `lesson-1`. On a lesson branch, the app contains the prior lesson's solution and the notes show the code to add. When you finish lesson 1, your files should match `lesson-2`; lesson 2 starts there. The notes site is available on every branch.
 
-For instructors, `python3 scripts/build_notes.py --check` verifies that all displayed diff blocks match the neighboring branches. Run the script without `--check` after changing a teaching checkpoint, then rebuild the notes site. A code checkout does not change PostgreSQL data or Inngest history, so reset the simulator between branch demos.
+For instructors, `npm run notes:check` verifies that all displayed diff blocks match the neighboring branches. Run `npm run notes:generate` after changing a teaching checkpoint, then rebuild the notes site. A code checkout does not change PostgreSQL data or Inngest history, so reset the simulator between branch demos.

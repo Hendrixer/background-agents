@@ -1,15 +1,10 @@
 # 05 · Make retries safe
 
-**14:15–15:00 · 45 minutes**  
 Start: `lesson-5` · Finished solution: `lesson-6`
 
 **Outcome:** A tool response can disappear after its effect commits; the same action ID must return the prior result instead of repeating the effect.
 
-## Open and predict
-
-Reset **Feature rollout**, arm **Lose the next tool response**, start health/log events, then start an agent. The first tool call returns 503 after its database commit. Did the action happen? What information would let a retry find out?
-
-## The idea
+## The engineering idea
 
 Retries sound easy until the failure lands between an effect and its acknowledgement. Suppose the operations API disables a feature, commits the database transaction, and its HTTP response disappears. The agent sees a 503. It cannot conclude that the action did not happen. Retrying is reasonable, but a second execution could create a second charge, email, deployment, or support ticket in a real product.
 
@@ -20,6 +15,22 @@ The **Lose the next tool response** button creates the exact uncertainty window:
 We will also add cancellation. A background run has a lifecycle after the person who started it leaves; someone must still be able to stop it. Inngest's `cancelOn` event correlates cancellation to the run, and our harness checks persisted run status at a loop boundary. [The Inngest cancellation reference](https://www.inngest.com/docs/reference/typescript/functions/cancel-on) notes that cancellation occurs between steps, so an in-flight step can finish. Cancellation is a clear state transition, not a magic rollback of completed external work.
 
 My rule for unattended agents is to make the failure modes visible. Show the retry, its stable action ID, the one committed effect, and the final run state. A successful happy-path demo is much less persuasive than a run that survives a failure we deliberately caused.
+
+### A retry is a request for the same intent
+
+The [AWS Builders Library explanation of idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) makes a distinction I want us to use: two requests with the same parameters are not necessarily the same *intent*. A customer might deliberately place two identical orders. A stable client-generated request ID lets the service tell an intended retry from a new operation. Our `actionId` is that intent key. It must stay the same across transport attempts, and a service should reject a reused key if its action or arguments conflict with the original request.
+
+The transaction boundary matters. If we record the key before the effect and crash, we may falsely claim success. If we apply the effect and record the key in separate transactions, a crash between them can repeat the effect. In the lab, the action row and service change belong to one database transaction. That gives us a concrete guarantee for our own database. It does not create an atomic transaction with an external payment or deployment provider. For that case, I need the provider's idempotency facility, a query to reconcile an uncertain result, or an explicit `unknown` state that stops the agent from guessing.
+
+### Separate failure policy from model choice
+
+When `execute-action-*` gets a transient error, the harness decides whether to retry and how long to back off. I do not need a model call to choose every retry delay. [Inngest's error-handling guide](https://www.inngest.com/docs/guides/error-handling) describes step retries and failure behavior. A production policy also needs a deadline or retry budget: otherwise a run can be technically alive while failing the user indefinitely. The agent can decide what to do after a *known* failure; the harness must first classify whether the effect is known to have failed, known to have succeeded, or still unknown.
+
+Cancellation has the same boundary. A cancellation event can prevent future steps, but it cannot undo an action already committed. I would show the operator a cancelled run with its completed effects and any compensation still needed. This is why a run timeline and effect ledger are more useful than one final status word. The question for this lesson is not “did the retry work?” It is “what can we prove happened exactly once at the effect boundary, and what remains uncertain?”
+
+## See it in the lab
+
+Reset **Feature rollout**, arm **Lose the next tool response**, and start health and log events. The first tool call commits but returns 503. Keep the operations timeline open: the state of the world and the response seen by the agent are now different.
 
 ## Live coding
 
@@ -101,11 +112,15 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the dashboard timeline and `actions` table, the matching action ID appears once. Use Cancel run while a workflow waits and confirm it stops.
 
-## Failure experiment
+## Break it on purpose
 
 Before adding the `applyAction` edits, the retry inserts a second action row because the server makes a new UUID. After the edits, the first response can still be lost, but the second request returns the saved result. Reset the scenario between the two runs.
 
-## Catch-up checkpoint
+## Engineering challenge
+
+Imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop.
+
+## Catch up
 
 Your solution is `lesson-6`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 5 progress"`, then `git switch lesson-6`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 

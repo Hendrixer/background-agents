@@ -1,15 +1,10 @@
 # 02 · Make progress durable
 
-**10:30–11:15 · 45 minutes**  
 Start: `lesson-2` · Finished solution: `lesson-3`
 
 **Outcome:** Each costly or effectful operation becomes a named Inngest step whose result survives a process restart.
 
-## Open and predict
-
-Open the `whole-agent-loop` trace from lesson 1. If the process dies after disabling the feature but before that step returns, what can the retry know? Reset **Feature rollout** before we change the code.
-
-## The idea
+## The engineering idea
 
 Our first agent has a goal and a loop, but all of its work sits inside one `whole-agent-loop` step. Imagine it inspects logs, calls a model, disables the bad feature, and then the Node process dies before the step returns. The service may have changed, but the workflow has no saved result for the step. A retry may have to repeat the whole block. A long-running agent cannot rely on one process remaining alive.
 
@@ -22,6 +17,26 @@ This is also a developer-experience choice. I want to open the Inngest trace and
 We will replace an in-process delay with `step.sleep`. The run can pause without keeping our agent endpoint busy. Then we will restart only the endpoint and watch the workflow resume. The lab and Inngest Dev Server remain up; in this local workshop the Dev Server holds its own execution history in memory, so restarting it is a different experiment.
 
 Durability is not a promise that external effects happen exactly once. A tool can commit a change and lose its response before the step result is saved. We will deliberately cause that gap in lesson 5. For now, the point is to make progress explicit and recoverable one meaningful step at a time.
+
+### Replay is not restoring a suspended stack
+
+The function body runs again after a wakeup or retry. Inngest uses the completed step results to reconstruct the path through it. Code outside a step can run again, so I keep external effects inside named steps. The [Inngest execution guide](https://www.inngest.com/docs/learn/how-functions-are-executed) is the reference for this behavior. When you inspect a trace, separate **the JavaScript that was reevaluated** from **the step callback that actually executed**. That distinction explains why a normal local variable is fine for computing a step name but not a durable place to store business state.
+
+Think carefully about the model call. If `chooseAction` ran again after a restart, a newer model version or a stochastic response could pick a different action for the same old observation. Saving the decision in `choose-action-*` makes that choice part of the run's history. The following tool step must use the saved choice. This is the useful tension in a durable agent: the agent is free to choose a path at a new decision point, but a replay must respect a choice it already made.
+
+### Two clocks, two stores
+
+PostgreSQL holds the current incident, approval, and run status. Inngest holds completed workflow steps. A checkpointed `observe-state-3` is evidence of what the agent saw during cycle 3; it is not a promise that checkout still looks that way in cycle 4. We create a new observation step for each cycle precisely because the world is mutable. The database and workflow history answer different questions: **What is true now?** and **What did this run already do?**
+
+There is a tradeoff in where we put step boundaries. One step around the entire loop hides partial progress and can repeat many operations. A step around every tiny pure calculation makes the trace noisy and increases history without adding recoverability. I checkpoint calls whose results matter after a crash: reading current state, choosing an action, executing an effect, and writing a report. The status writes are visible in the trace because they explain what a person sees while the agent works. I would revisit that granularity with actual traces, not by adding steps everywhere by habit.
+
+Long-running code also changes while old runs are sleeping. [Inngest's versioning guide](https://www.inngest.com/docs/learn/versioning) explains how step IDs affect memoized results. Reusing an ID means an in-progress run can reuse an old result; changing it can force work to execute again. That is an architecture and deployment decision, especially for a model call or side effect. Before changing a step name in a production agent, I would ask which existing runs might wake on the new code and what they would repeat.
+
+Anthropic's [long-running harness work](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) reaches a related conclusion from coding agents: progress across sessions needs explicit artifacts that the next session can inspect. Our incident state and step history are small versions of those artifacts. A long prompt alone is not durable memory.
+
+## See it in the lab
+
+Open the `whole-agent-loop` trace from lesson 1, then reset **Feature rollout**. The service may have changed during the step, but the trace contains one result for the entire loop. We will make each expensive decision and external effect visible as its own checkpoint.
 
 ## Live coding
 
@@ -121,11 +136,15 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
 
-## Failure experiment
+## Break it on purpose
 
 If you started everything with `npm run dev`, stop that combined command first and restart `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. While a run sleeps, restart only the agent terminal. Identify which step outputs came from history and which callback actually ran. Keep the local Inngest Dev Server running throughout this experiment.
 
-## Catch-up checkpoint
+## Engineering challenge
+
+Make a crash-window table for three points: after the model chooses an action, after the operations API commits but before it replies, and after Inngest records the step result. For each point, state what replay knows, what it may repeat, and which system has the authority to deduplicate the effect. Then imagine deploying a changed `choose-action-*` step while a run waits. Would you reuse the step ID or deliberately change it, and why?
+
+## Catch up
 
 Your solution is `lesson-3`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 2 progress"`, then `git switch lesson-3`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 

@@ -21,12 +21,16 @@ Each lesson SHALL name the source file and location for every live edit, show ne
 ### Requirement: Shared teaching voice
 Each lesson SHALL explain its conceptual model and design tradeoffs before the code in language addressed to students, so the same notes support live teaching and later self-study.
 
+Each lesson SHALL connect at least one architectural claim to a primary research or technical source, identify the instructor's design judgment, and include an engineering challenge that tests reasoning beyond the required code.
+
 #### Scenario: Student revisits a recorded lesson
 - **WHEN** a student reads the notes after the workshop
 - **THEN** the reasoning behind the code and the instructor's position are understandable without private presenter notes
 
 ### Requirement: Local notes and rehearsal
 The course SHALL serve Markdown notes locally and SHALL provide a command to detect drift between displayed code and adjacent Git branches.
+
+The notes generator SHALL run with Node.js. The lesson header SHALL omit time blocks, and the lesson shall introduce the lab with a concrete setup rather than a generic prediction prompt.
 
 #### Scenario: Code changes after notes are written
 - **WHEN** a teaching checkpoint changes without regenerating its notes
