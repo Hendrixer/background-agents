@@ -1,0 +1,45 @@
+{
+  "name": "background-agents-workshop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n lab,agent,web,inngest -c cyan,blue,magenta,yellow \"npm:dev:lab\" \"npm:dev:agent\" \"npm:dev:web\" \"npm:dev:inngest\"",
+    "dev:lab": "INNGEST_DEV=1 tsx watch server/lab.ts",
+    "dev:agent": "INNGEST_DEV=1 tsx watch server/agent.ts",
+    "dev:web": "vite --host 127.0.0.1",
+    "dev:inngest": "inngest dev -u http://127.0.0.1:3002/api/inngest",
+    "docs": "vitepress dev lessons --port 5174",
+    "docs:build": "vitepress build lessons",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx server/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.78",
+    "ai": "7.0.118",
+    "dotenv": "^18.0.4",
+    "drizzle-orm": "^0.45.3",
+    "express": "^5.2.1",
+    "inngest": "^4.21.0",
+    "lucide-react": "^1.48.0",
+    "postgres": "^3.4.9",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "drizzle-kit": "^0.31.11",
+    "inngest-cli": "^1.45.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitepress": "^1.6.4"
+  }
+}
