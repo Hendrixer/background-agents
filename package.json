@@ -10,6 +10,8 @@
     "dev:inngest": "inngest dev -u http://127.0.0.1:3002/api/inngest",
     "docs": "vitepress dev lessons --port 5174 --host 127.0.0.1",
     "docs:build": "vitepress build lessons",
+    "notes:generate": "node scripts/build-notes.mjs",
+    "notes:check": "node scripts/build-notes.mjs --check",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx server/seed.ts",
     "preflight": "node scripts/preflight.mjs",
