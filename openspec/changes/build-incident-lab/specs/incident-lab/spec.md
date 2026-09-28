@@ -44,7 +44,7 @@ The UI SHALL have four routes: inbox, activity, events, and simulator administra
 - **THEN** the operator can inspect server events, the current scenario condition, or a run's actions and wait reason without reading server logs
 
 ### Requirement: Local course setup
-The course SHALL start locally with documented npm commands, PostgreSQL configuration, a separate agent process endpoint, and a local Markdown notes site. Credentials SHALL come from ignored environment files.
+The course SHALL start with documented npm commands, a no-account temporary Neon PostgreSQL database, a separate local agent process endpoint, and a local Markdown notes site. Credentials SHALL come from ignored environment files; setup SHALL explain the database's expiration and how to create a replacement.
 
 #### Scenario: Agent restart
 - **WHEN** the agent endpoint process restarts while the lab remains running

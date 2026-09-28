@@ -23,24 +23,25 @@ The simulator does not create a new agent for every event. We start **one run wi
 
 ## What you need before we start
 
-You should be comfortable with JavaScript or TypeScript, `async`/`await`, npm, Git, and a basic Node.js server. Prior agent experience is helpful but not required. Bring Node.js LTS, npm, Git, an editor, local PostgreSQL, and an LLM API key with available usage. Everything in the required workshop runs locally; you do not need a deployment or an Inngest Cloud account.
+You should be comfortable with JavaScript or TypeScript, `async`/`await`, npm, Git, and a basic Node.js server. Prior agent experience is helpful but not required. Bring Node.js LTS, npm, Git, an editor, an internet connection, and an LLM API key with available usage. The app and Inngest Dev Server run locally; the database lives on Neon. You do not need a local PostgreSQL installation, a deployment, or an Inngest Cloud account.
 
 From the `background-agents` directory, start on the `lesson-1` branch and set up the supplied app:
 
 ```bash
 git switch lesson-1
 npm install
-createdb background_agents
 cp .env.example .env
 ```
 
-If the database already exists, skip `createdb`. Copy the example environment file if needed, then put your working key and model in `.env`:
+Open [neon.new](https://neon.new/), create a temporary database without an account, and copy its **PostgreSQL connection string**. Put the entire string in `.env`, along with your working model key and model. Copy the database URL, not the claim URL:
 
 ```dotenv
-DATABASE_URL=postgres://localhost:5432/background_agents
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
 OPENAI_API_KEY=your-key
 OPENAI_MODEL=your-available-model
 ```
+
+That URL is an example of the format; use your own from Neon and do not commit `.env`. The unclaimed database expires after **72 hours**. For work beyond that window, claim it before expiry or create another free database and run the schema and seed commands again. Neon says neon.new is being sunset in favor of [Claimable Neon](https://neon.com/claimable-neon), so use Neon's current no-account page if this link has moved by the time you watch the VOD.
 
 Run the setup and start the lab:
 
