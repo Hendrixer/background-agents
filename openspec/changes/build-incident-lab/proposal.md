@@ -4,7 +4,7 @@ Students need a believable, repeatable incident to investigate without spending 
 
 ## What Changes
 
-- Create a local TypeScript app with a charcoal incident dashboard and controls for scenario, event type, rate, start, stop, single event, burst, and reset.
+- Create a local TypeScript operator app with an agent inbox as its home page, focused service and log routes, and a separate simulator admin route with scenario, event type, rate, start, stop, single event, burst, and reset controls.
 - Persist service state, events, actions, approvals, and reports in local PostgreSQL through Drizzle.
 - Provide three incident presets with real state changes behind simulated operations: feature rollout, faulty release, and upstream outage.
 - Expose small, typed HTTP endpoints for service observations and operations; the later agent changes will consume these contracts.
