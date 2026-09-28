@@ -68,7 +68,7 @@
       "experiment": "Before adding the `applyAction` edits, the retry inserts a second action row because the server makes a new UUID. After the edits, the first response can still be lost, but the second request returns the saved result. Reset the scenario between the two runs.",
       "mistakes": "Idempotency must live where the effect happens. A client-side “already called” flag disappears on restart. Keep the same `actionId` across retries; a new UUID for each attempt defeats the table constraint.",
       "extension": "Consider how you would carry this key through a third-party API that supports an idempotency header.",
-      "challenge": "Imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop."
+      "challenge": "First, reuse one action ID with a different action or input. What result does this lab return, and what conflict check would a production API need? Then imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop."
     },
     {
       "slug": "06-incident-drill",
