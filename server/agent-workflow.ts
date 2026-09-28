@@ -25,7 +25,43 @@ export const incidentAgent = inngest.createFunction(
       if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
     },
   },
-  async ({ event }) => {
-    await setRun(event.data.runId, "waiting", "Build the agent loop in lesson 1");
+  async ({ event, step }) => {
+    const { labId, runId } = event.data;
+    const run = await getRun(runId);
+
+    return step.run("whole-agent-loop", async () => {
+      for (let iteration = 1; iteration <= 12; iteration++) {
+        const currentLab = await activeLab();
+        if (currentLab?.id !== labId) {
+          await setRun(runId, "cancelled", "Scenario was reset");
+          return;
+        }
+
+        const state = await agentState(labId);
+        if (state.service.healthy && state.observations.length > 0) {
+          const report = await writeReport(run.goal, state);
+          await setRun(runId, "completed", null, report);
+          return { report };
+        }
+
+        if (state.observations.length === 0) {
+          await setRun(runId, "waiting", "Waiting for the first health observation");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        const decision = await chooseAction(run.goal, state);
+        await setIteration(runId, iteration);
+        await recordDecision(labId, runId, iteration, decision.action, decision.reason);
+        if (decision.action === "complete") {
+          await addTimeline(labId, "policy", "Completion rejected: service is not healthy", {}, runId);
+          continue;
+        }
+
+        await executeAction(labId, `${runId}:${iteration}:${decision.action}`, decision.action);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      await setRun(runId, "escalated", "Decision limit reached");
+    });
   },
 );
