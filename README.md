@@ -8,7 +8,7 @@ A one-day, hands-on Node.js workshop. Students build the agent and harness while
 | --- | --- | --- |
 | Incident lab API | http://127.0.0.1:3001 | Service state, event simulator, operations, approvals |
 | Agent endpoint | http://127.0.0.1:3002/api/inngest | Inngest function code |
-| Operations dashboard | http://127.0.0.1:5173 | Service health, agent runs, inbox, and separate logs |
+| Operations dashboard | http://127.0.0.1:5173 | Inbox, run activity, service events, and simulator |
 | Inngest Dev Server | http://127.0.0.1:8288 | Durable execution and step traces |
 | Lesson notes | http://127.0.0.1:5174 | Markdown site, started separately |
 
@@ -58,18 +58,19 @@ The dashboard separates operator work from workshop controls:
 | Route | Purpose |
 | --- | --- |
 | `/` or `/inbox` | Agent inbox with requests, decisions, and replies |
-| `/service` | Scripted checkout condition and generated health observations |
-| `/agent` | Start or inspect a run, read its saved activity log and report |
-| `/events` | Service events sent to the agent |
-| `/admin` | Reset scenarios and control the event simulator |
+| `/activity` | Scrollable run list, saved activity feed, and reports |
+| `/events` | Service events recorded by the lab and sent toward Inngest |
+| `/admin` | Create a scenario, start one run, and send a finite event batch |
 
-On `/admin`, choose a scenario and reset it. Pick event types and a rate, then start the event stream or emit events manually. Feature rollout is fixed by disabling the bad feature. Faulty release requires a human-approved rollback. Upstream outage requires help and an external recovery signal from the simulator. Start the agent from `/agent`, then compare its per-run activity with the service event log on `/events` and the execution trace in Inngest.
+On `/admin`, create a scenario, start one agent run with a goal, then compose a finite event batch. Set the number of events, interval, and either one event type or a weighted mix of types. The lab server sends the batch even if the browser closes. Service events are saved and sent toward Inngest as wakeup hints; they do not create a new run for every event. The agent reads current state after it wakes. A one-event batch tests a wakeup; several spaced health events verify sustained recovery.
+
+Feature rollout is fixed by disabling the bad feature. Faulty release requires a human-approved rollback. Upstream outage requires help and an external recovery signal from the simulator. Compare each run's activity on `/activity` with the service event log on `/events` and the execution trace in Inngest.
 
 Use Feature rollout for lessons 1–3 and 5, Faulty release for lesson 4, and Upstream outage for lesson 6. Earlier checkpoints intentionally leave some safety rules unfinished so you can see the behavior those lessons will change.
 
-Stop events to test waiting; this does not cancel the agent. Cancel the run separately. Reset creates a new scenario instance while prior run history remains in PostgreSQL.
+Let a batch finish or stop it to test waiting; this does not cancel the agent. Cancel the run separately on `/activity`. Reset creates a new scenario instance while prior run history remains in PostgreSQL; the dashboard lists runs for the current scenario.
 
-The simulator is intentionally small. It has one active incident at a time and bounded event rates so each state transition is easy to inspect during a live lesson.
+The simulator is intentionally small. It has one active incident at a time and bounded batch sizes and intervals so each state transition is easy to inspect during a live lesson.
 The local agent endpoint accepts larger Inngest replay requests than Express's default 100 KB body limit. Each wakeup still adds to a run's step history, so reset between drills; a production agent that waits indefinitely should compact or roll over its work rather than accumulate an unbounded single run.
 
 ## Lesson branches
@@ -86,5 +87,7 @@ Each lesson branch contains the previous lesson's solution and the current lesso
 | 6 | `lesson-6` | `complete` |
 
 Start at `lesson-1`. On a lesson branch, the app contains the prior lesson's solution and the notes show the code to add. When you finish lesson 1, your files should match `lesson-2`; lesson 2 starts there. The notes site is available on every branch.
+
+Read [the course introduction](lessons/index.md) first. It explains the architecture, prerequisites, local setup, and branch handoff. This is lesson 00 and has no code edit.
 
 For instructors, `npm run notes:check` verifies that all displayed diff blocks match the neighboring branches. Run `npm run notes:generate` after changing a teaching checkpoint, then rebuild the notes site. A code checkout does not change PostgreSQL data or Inngest history, so reset the simulator between branch demos.

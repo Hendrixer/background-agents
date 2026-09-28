@@ -1,34 +1,41 @@
 import express from "express";
 import { ZodError, z } from "zod";
 import { ACTIONS, EVENT_TYPES, SCENARIOS } from "../shared/types";
-import { activeLab, applyAction, configureLab, consumeFailureInjection, dashboard, emitLabEvent, ensureLab, recoverUpstream, resetLab, setFailureInjection, snapshot } from "./lab-data";
+import { activeEventPlan, activeLab, applyAction, consumeFailureInjection, dashboard, emitLabEvent, ensureLab, nextPlanEventType, recoverUpstream, resetLab, setFailureInjection, snapshot, startEventPlan, stopEventPlan } from "./lab-data";
 import { cancelRun, decideProposal, getRun, startRun } from "./agent-data";
 import { activityForRun } from "./agent-log";
 
 const app = express();
 app.use(express.json());
 
-let generator: ReturnType<typeof setInterval> | null = null;
-let generating = false;
+let generator: ReturnType<typeof setTimeout> | null = null;
 
 async function syncGenerator() {
-  if (generator) clearInterval(generator);
+  if (generator) clearTimeout(generator);
   generator = null;
   const lab = await activeLab();
   if (!lab?.running) return;
+  const plan = await activeEventPlan(lab.id);
+  if (!plan) {
+    await stopEventPlan(lab.id);
+    return;
+  }
 
-  generator = setInterval(async () => {
-    if (generating) return;
-    generating = true;
-    try {
-      const current = await activeLab();
-      if (current?.id === lab.id && current.running) await emitLabEvent(lab.id);
-    } catch (error) {
-      console.error("Event generator failed", error);
-    } finally {
-      generating = false;
-    }
-  }, 1000 / lab.rate);
+  const schedule = (delay: number) => {
+    generator = setTimeout(async () => {
+      try {
+        const current = await activeLab();
+        const active = await activeEventPlan(lab.id);
+        if (current?.id !== lab.id || !current.running || active?.id !== plan.id) return;
+        await emitLabEvent(lab.id, nextPlanEventType(active), active.id);
+        if (active.sent + 1 < active.total) schedule(active.intervalMs);
+      } catch (error) {
+        console.error("Event generator failed", error);
+        schedule(plan.intervalMs);
+      }
+    }, delay);
+  };
+  schedule(plan.sent === 0 ? 0 : plan.intervalMs);
 }
 
 app.get("/api/health", (_request, response) => {
@@ -61,18 +68,27 @@ app.post("/api/lab/reset", async (request, response) => {
   response.json({ lab: await snapshot(lab.id) });
 });
 
-app.post("/api/lab/config", async (request, response) => {
+app.post("/api/lab/plan", async (request, response) => {
   const input = z.object({
     labId: z.string().uuid(),
-    rate: z.number().int().min(1).max(5).optional(),
-    eventTypes: z.array(z.enum(EVENT_TYPES)).min(1).optional(),
-    running: z.boolean().optional(),
+    total: z.number().int().min(1).max(100),
+    intervalMs: z.number().int().min(100).max(10_000),
+    weights: z.object(Object.fromEntries(EVENT_TYPES.map((type) => [type, z.number().int().min(0).max(100)])) as Record<typeof EVENT_TYPES[number], z.ZodNumber>),
   }).parse(request.body);
-  const current = await activeLab();
-  if (current?.id !== input.labId) throw new Error("Only the active lab can be configured");
-  await configureLab(input.labId, input);
+  if (EVENT_TYPES.reduce((sum, type) => sum + input.weights[type], 0) !== 100) {
+    response.status(400).json({ error: "Event percentages must total 100" });
+    return;
+  }
+  const plan = await startEventPlan(input.labId, input);
   await syncGenerator();
-  response.json({ lab: await snapshot(input.labId) });
+  response.json(plan);
+});
+
+app.post("/api/lab/plan/stop", async (request, response) => {
+  const { labId } = z.object({ labId: z.string().uuid() }).parse(request.body);
+  await stopEventPlan(labId);
+  await syncGenerator();
+  response.json({ stopped: true });
 });
 
 app.post("/api/lab/emit", async (request, response) => {
