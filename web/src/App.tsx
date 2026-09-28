@@ -149,7 +149,7 @@ export default function App() {
           <div className="left-column">
             <section className="panel health-panel"><div className="panel-header"><div><span className="panel-kicker">SERVICE</span><h2>Checkout health</h2></div><Badge label={healthy ? "Operational" : "Incident active"} tone={healthy ? "good" : "bad"} /></div>
               <div className="health-chart"><div className="chart-grid"><span>50%</span><span>25%</span><span>0%</span></div><div className="bars">{Array.from({ length: 22 }, (_, index) => { const item = data?.observations.slice().reverse()[index]; const value = item?.errorRate ?? (lab?.errorRate || 0); return <div key={index} className={`bar ${value > 10 ? "bar-bad" : "bar-good"}`} style={{ height: `${Math.max(5, value * 1.65)}%` }} title={`${value}% errors`} />; })}</div></div>
-              <div className="chart-caption"><span>ERROR RATE · RECENT OBSERVATIONS</span><span><span className="legend-dot" /> Current {lab?.errorRate ?? "—"}%</span></div>
+              <div className="chart-caption"><span>ERROR RATE · RECENT OBSERVATIONS</span><span><span className={`legend-dot ${healthy ? "legend-good" : ""}`} /> Current {lab?.errorRate ?? "—"}%</span></div>
               <div className="service-facts"><div><span>Release</span><strong>{lab?.release || "—"}</strong></div><div><span>Feature flag</span><strong>{lab?.featureEnabled ? "Enabled" : "Disabled"}</strong></div><div><span>Dependency</span><strong>{lab?.upstreamHealthy ? "Available" : "Unavailable"}</strong></div><div><span>Last observation</span><strong>{time(lab?.lastObservationAt)}</strong></div></div>
             </section>
 
