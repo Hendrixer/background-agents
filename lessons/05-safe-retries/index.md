@@ -7,13 +7,19 @@ Start: `lesson-5` · Finished solution: `lesson-6`
 
 ## Open and predict
 
-Reset **Feature rollout**, arm **Lose the next tool response**, start health/log events, then start an agent. The first call returns 503 after the database commit. Ask: “Did the action happen, and how can the retry find out?”
-
-Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.
+Reset **Feature rollout**, arm **Lose the next tool response**, start health/log events, then start an agent. The first tool call returns 503 after its database commit. Did the action happen? What information would let a retry find out?
 
 ## The idea
 
-Inngest checkpoints after `step.run` returns. Between the external effect and that checkpoint is an uncertainty window. The operations API owns idempotency using a stable action ID inside a database transaction. Cancellation is another durable event and the loop also reads the run status at a safe boundary.
+Retries sound easy until the failure lands between an effect and its acknowledgement. Suppose the operations API disables a feature, commits the database transaction, and its HTTP response disappears. The agent sees a 503. It cannot conclude that the action did not happen. Retrying is reasonable, but a second execution could create a second charge, email, deployment, or support ticket in a real product.
+
+Durable execution saves successful step results. It cannot save a result it never received. The service that owns the side effect must therefore recognize repeated requests. We already send an `actionId` derived from the run and decision. Now the operations API will store that ID and the result in the same transaction as the effect. If a request arrives with the same ID, it returns the recorded result without applying the action again. This is application-level idempotency at the effect boundary. [Inngest's retry guide](https://www.inngest.com/docs/guides/error-handling) explicitly pairs step retries with idempotent side effects.
+
+The **Lose the next tool response** button creates the exact uncertainty window: the operation commits, then the API responds with 503 once. Watch the Inngest trace retry `execute-action-*`. Before our edit, the lab creates a new action row on each request. After the edit, the second request sees the prior ID and result. The visible outcome may look the same for `disable_feature`, since setting a flag to false twice is harmless. The action history proves whether we actually prevented duplicate execution.
+
+We will also add cancellation. A background run has a lifecycle after the person who started it leaves; someone must still be able to stop it. Inngest's `cancelOn` event correlates cancellation to the run, and our harness checks persisted run status at a loop boundary. [The Inngest cancellation reference](https://www.inngest.com/docs/reference/typescript/functions/cancel-on) notes that cancellation occurs between steps, so an in-flight step can finish. Cancellation is a clear state transition, not a magic rollback of completed external work.
+
+My rule for unattended agents is to make the failure modes visible. Show the retry, its stable action ID, the one committed effect, and the final run state. A successful happy-path demo is much less persuasive than a run that survives a failure we deliberately caused.
 
 ## Live coding
 
@@ -23,7 +29,7 @@ These code blocks are the exact changes between the start and solution branches.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Register a cancellation event that must match this run ID. Inngest can stop a sleeping run at a step boundary.
 
 ```diff
      name: "Incident response agent",
@@ -37,7 +43,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Read the persisted run status before the next cycle does work. This makes the application state agree with cancellation.
 
 ```diff
      while (decisions < 12) {
@@ -52,7 +58,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 3 · `server/lab-data.ts`
 
-Open `server/lab-data.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+At the start of `applyAction`, return a saved result when the same action ID has already committed.
 
 ```diff
  }
@@ -71,7 +77,7 @@ Open `server/lab-data.ts` and find the surrounding function or configuration sho
 
 ### Edit 4 · `server/lab-data.ts`
 
-Open `server/lab-data.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Store the caller-provided action ID instead of a fresh UUID. If another request wins the insert, read and return its result without applying the effect again.
 
 ```diff
          break;

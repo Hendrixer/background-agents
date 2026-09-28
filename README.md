@@ -55,6 +55,8 @@ For a durability demo, run `npm run dev:lab`, `npm run dev:web`, `npm run dev:in
 
 Choose a scenario and reset it. Pick event types and a rate, then start the event stream or emit events manually. Feature rollout is fixed by disabling the bad feature. Faulty release requires a human-approved rollback. Upstream outage requires help and an external recovery signal from the simulator.
 
+Use Feature rollout for lessons 1–3 and 5, Faulty release for lesson 4, and Upstream outage for lesson 6. Earlier checkpoints intentionally leave some safety rules unfinished so you can see the behavior those lessons will change.
+
 Stop events to test waiting; this does not cancel the agent. Cancel the run separately. Reset creates a new scenario instance while prior run history remains in PostgreSQL.
 
 The simulator is intentionally small. It has one active incident at a time and bounded event rates so each state transition is easy to inspect during a live lesson.

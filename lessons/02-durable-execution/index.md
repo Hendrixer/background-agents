@@ -7,13 +7,21 @@ Start: `lesson-2` · Finished solution: `lesson-3`
 
 ## Open and predict
 
-Show the `whole-agent-loop` trace from lesson 1. Ask: “If the process dies after disabling the feature but before the step returns, what can the retry know?” Then reset Feature rollout.
-
-Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.
+Open the `whole-agent-loop` trace from lesson 1. If the process dies after disabling the feature but before that step returns, what can the retry know? Reset **Feature rollout** before we change the code.
 
 ## The idea
 
-Inngest reruns function code to reconstruct a workflow and reuses completed step results. A `step.run` boundary is therefore both a replay boundary and a debugging landmark. Keep step IDs stable and unique for each loop cycle. A durable sleep releases the process while the run is waiting.
+Our first agent has a goal and a loop, but all of its work sits inside one `whole-agent-loop` step. Imagine it inspects logs, calls a model, disables the bad feature, and then the Node process dies before the step returns. The service may have changed, but the workflow has no saved result for the step. A retry may have to repeat the whole block. A long-running agent cannot rely on one process remaining alive.
+
+Durable execution gives the run a history outside that process. Inngest persists each completed `step.run` result and reconstructs the function by rerunning its code with those saved results. Completed callbacks are skipped; the workflow continues at the first unfinished step. That is why we give **state read**, **model choice**, **tool effect**, and **report** their own named boundaries. The decision is especially important: on replay, I do not want a fresh model answer to rewrite what the agent decided earlier. [Inngest's execution model](https://www.inngest.com/docs/learn/how-functions-are-executed) explains this step-by-step reconstruction.
+
+There is a subtle distinction here. A model-directed path can be dynamic on its first run while its replay is deterministic. The model may choose `inspect_logs`, `disable_feature`, or `request_help`; we do not predefine that sequence. Once a choice is checkpointed, replay must use the recorded choice so the same branch is reconstructed. Our `cycle` number makes every step ID unique as the loop repeats. Static IDs inside the loop would make the history ambiguous.
+
+This is also a developer-experience choice. I want to open the Inngest trace and see where an agent observed, decided, acted, failed, slept, and resumed. A single opaque step might technically run, but it gives me very little to debug or explain to a user. A good background agent should have a legible run history, not just a final answer.
+
+We will replace an in-process delay with `step.sleep`. The run can pause without keeping our agent endpoint busy. Then we will restart only the endpoint and watch the workflow resume. The lab and Inngest Dev Server remain up; in this local workshop the Dev Server holds its own execution history in memory, so restarting it is a different experiment.
+
+Durability is not a promise that external effects happen exactly once. A tool can commit a change and lose its response before the step result is saved. We will deliberately cause that gap in lesson 5. For now, the point is to make progress explicit and recoverable one meaningful step at a time.
 
 ## Live coding
 
@@ -23,7 +31,7 @@ These code blocks are the exact changes between the start and solution branches.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Lift the loop out of `whole-agent-loop` so Inngest can checkpoint its meaningful operations separately. Notice the unique `${cycle}` suffix on every repeated step ID. Replace this handler as one edit, then typecheck.
 
 ```diff
    async ({ event, step }) => {
@@ -111,11 +119,11 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only `npm run dev:agent` while the run sleeps; the lab and Inngest Dev Server stay up.
+Start the Feature rollout run and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
 
 ## Failure experiment
 
-While a run sleeps, stop only the agent endpoint and restart it. Ask students to identify which step outputs were replayed from history rather than redoing a tool call. The Inngest Dev Server used in this workshop is local and should remain running.
+If you started everything with `npm run dev`, stop that combined command first and restart `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. While a run sleeps, restart only the agent terminal. Identify which step outputs came from history and which callback actually ran. Keep the local Inngest Dev Server running throughout this experiment.
 
 ## Catch-up checkpoint
 
