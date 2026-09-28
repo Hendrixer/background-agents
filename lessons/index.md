@@ -30,8 +30,10 @@ There is at least a 15-minute catch-up break after each lesson. Lunch begins at 
 | 5 | `lesson-5` | `lesson-6` | [Safe retries](/05-safe-retries/) |
 | 6 | `lesson-6` | `complete` | [Incident drill](/06-incident-drill/) |
 
+If you move quickly, take the [advanced lab](/advanced-lab/): evaluate the agent across normal, failed, and human-interrupted runs, then defend one architecture change. It uses the same app and traces, so the challenge is in reasoning about evidence, authority, and failure rather than learning another framework.
+
 Each lesson page contains exact code blocks derived from those two branches. Red lines are removed, green lines are added, and unchanged lines show where the edit belongs. The copy button on a diff copies the resulting code without diff prefixes.
 
-Start with the **Open and predict** question. The lesson's conceptual section is written for us to discuss together and for you to revisit later. Then make the live edits, inspect the trace, and run the failure experiment. If your model picks a different action, follow the state and policy in the trace rather than expecting a fixed script. The instructor can use `AGENT_DEMO_MODE=1` for a repeatable demonstration; your normal run uses the model configured in `.env`.
+Start with the lesson's engineering idea, including the research and tradeoffs I want us to discuss. Then see the behavior in the lab, make the live edits, inspect the trace, and run the failure experiment and engineering challenge. If your model picks a different action, follow the state and policy in the trace rather than expecting a fixed script. The instructor can use `AGENT_DEMO_MODE=1` for a repeatable demonstration; your normal run uses the model configured in `.env`.
 
 For setup, install dependencies, create the `background_agents` PostgreSQL database, add your API key and model to `.env`, then run `npm run db:push`, `npm run db:seed`, and `npm run dev`. The repository README has the full process and branch instructions.
