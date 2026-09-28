@@ -1,6 +1,6 @@
 # Background agents workshop — course plan
 
-Status: planning draft, September 28, 2026. The application and lesson checkpoints have not been built yet.
+Status: reference app and six teaching checkpoints built, September 28, 2026. Instructor rehearsal with a real model key remains.
 
 ## Confirmed decisions
 
@@ -61,7 +61,7 @@ For the main scenario, use an explicit success predicate: fresh health observati
 
 Waiting for approval or help is nonterminal. Model/tool failures may be retryable. Completed, failed, cancelled, and escalated outcomes must be distinguishable.
 
-## Proposed six-lesson progression
+## Six-lesson progression
 
 Each lesson should take roughly 45 minutes: 8 minutes of explanation, 5 minutes of demonstration/prediction, 25 minutes of coding, and 7 minutes of verification. This is a rehearsal budget, not a promise before the code is written.
 
@@ -78,7 +78,7 @@ Keep observability present from the first lesson. Treat context management as se
 
 Scheduling is a brief application of the same wakeup model. Prefer durable timers and recovery checks in the main path; a cron-triggered run can be a short extension if rehearsal time permits.
 
-## Proposed schedule
+## Schedule
 
 Assumes the original 09:30–16:30 window. Lunch moves 15 minutes later to give all six lessons equal space.
 
@@ -119,14 +119,13 @@ Author explanations manually and derive code examples from actual checkpoint cod
 
 ## Preparation sequence
 
-1. Agree on the small tool catalog and simulator scenarios.
-2. Build the lab shell and one end-to-end reference incident.
-3. Add the durable lifecycle, approval gate, and failure experiments.
-4. Rehearse the reference app and adjust scope.
-5. Construct the forward lesson checkpoints and exact edit sequence.
-6. Generate code blocks, write explanations, and validate notes against checkpoints.
-7. Rehearse every lesson on a clean checkout with a fresh lab state.
-8. Freeze dependency versions, demo recipes, and the teaching release for the VOD.
+1. ~~Agree on the tool catalog and simulator scenarios.~~
+2. ~~Build the lab shell and one end-to-end reference incident.~~
+3. ~~Add the durable lifecycle, approval gate, and failure experiments.~~
+4. ~~Construct the forward lesson checkpoints and exact edit sequence.~~
+5. ~~Generate code blocks and validate notes against checkpoints.~~
+6. Rehearse every lesson on a clean checkout with a real model key and fresh lab state.
+7. Freeze demo recordings and the teaching release for the VOD.
 
 No lesson is ready solely because the final app works. Each start branch must run, its notes must lead to the documented end state, and its demo must be repeatable within the time budget.
 
