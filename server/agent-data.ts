@@ -71,10 +71,13 @@ export type AgentState = Awaited<ReturnType<typeof agentState>>;
 export function hasRecovered(state: AgentState) {
   let healthySamples = 0;
   let oldestHealthyAt = 0;
+  let previousHealthyAt = 0;
   for (const item of state.observations) {
-    if (!item.healthy) break;
+    const observedAt = new Date(item.at).getTime();
+    if (!item.healthy || (previousHealthyAt && previousHealthyAt - observedAt > 5_000)) break;
     healthySamples += 1;
-    oldestHealthyAt = new Date(item.at).getTime();
+    oldestHealthyAt = observedAt;
+    previousHealthyAt = observedAt;
   }
   if (healthySamples < 3) return false;
   const newest = new Date(state.observations[0].at).getTime();
