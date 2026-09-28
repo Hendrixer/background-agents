@@ -1,5 +1,5 @@
-StartDate: 2026-09-27
-EndDate: 2026-09-27
+StartDate: 2026-09-29
+EndDate: 2026-09-29
 
 Slug: background-agents
 Title: Build AI Agents that Never Sleep
@@ -9,7 +9,7 @@ TeacherTitle: Netflix Engineer, Founder, & AI Builder
 Teachers:
   - moss
 
-Excerpt: Build an incident-response agent that investigates a simulated service, takes action, waits for human approval, and resumes after failures. Learn how to put the harness in control with durable execution, events, safe retries, and observable state.
+Excerpt: Build an incident-response agent that watches a changing service, takes action, reaches you through an agent inbox, and resumes after events or failures. Learn how to put the harness in control with durable execution, human decisions, safe retries, and observable state.
 
 Benefits:
   - Understand how background execution differs from a chat interface and when an agent needs a durable lifecycle.
@@ -17,12 +17,13 @@ Benefits:
   - Use Inngest to checkpoint model calls and tool execution so runs can resume after app restarts.
   - Suspend runs until events, timers, or human decisions arrive, then reassess the current state.
   - Require approval for disruptive actions and handle rejection, expiry, and changed conditions before execution.
+  - Give the agent an inbox for approvals and questions so people can respond after the original request ends.
   - Make retries safe with action idempotency, timeouts, run limits, and cancellation.
   - Use a local event simulator and Inngest traces to reproduce failures and explain what a run did.
   - Leave with a working incident-response agent and a reference architecture you can adapt for your own background workflows.
 
 Summary: >
-  Give an agent a goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that investigates a simulated service, chooses a remediation, waits for approval when required, verifies recovery, and produces an incident report.
+  Give an agent a goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that observes a changing service, chooses a remediation, reaches you through an agent inbox when it needs approval or an answer, verifies recovery, and produces an incident report.
 
   Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of state, action validation, and completion. Then you'll use Inngest to make execution durable, pause for external events and human decisions, and recover safely from failures. You'll deliberately restart the agent, duplicate events, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
 

@@ -4,7 +4,7 @@ Status: six lesson pages and checkpoints built, September 28, 2026. Code blocks 
 
 ## Purpose
 
-The notes are both a student reference and Scott's coding script on a small podium monitor. At every step, they must answer:
+The notes are both a student reference and Scott's coding script on a small podium monitor. They are written as Scott speaking to students: his point of view and the conceptual explanation come before code, with questions and experiments addressed directly to the reader. At every step, they must answer:
 
 1. Which file do I open?
 2. Where exactly does this edit go?
@@ -12,13 +12,13 @@ The notes are both a student reference and Scott's coding script on a small podi
 4. What exact code do I type?
 5. What should work when I finish this step?
 
-Use Markdown as the source and VitePress for local browsing, following the existing course tooling. The same Markdown must remain readable in an editor or on GitHub. Instructor delivery cues can live in ordinary `<details>` blocks without introducing a second lesson source.
+Use Markdown as the source and VitePress for local browsing, following the existing course tooling. The same Markdown must remain readable in an editor or on GitHub. Keep one student-facing lesson source; do not put third-person presenter instructions in the published lesson.
 
 ## Lesson page structure
 
 1. Outcome, estimated time, start branch, solution branch, and required running processes.
 2. Opening demo and exact simulator preset/reset instructions.
-3. Short conceptual explanation tied to the demo.
+3. A substantial conceptual explanation in Scott's voice, with his design opinions, tradeoffs, and links to primary technical sources where appropriate.
 4. File change map: create, modify, move, or delete.
 5. Numbered live-coding steps, in teaching order.
 6. Verification: command or UI action plus expected result.
