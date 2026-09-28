@@ -14,4 +14,4 @@
 
 - [x] 3.1 Build the charcoal dashboard with service, controls, timeline, approvals, run state, and report panels; verify in a browser at desktop and podium widths.
 - [x] 3.2 Add a separate Inngest endpoint process scaffold and local VitePress notes site; verify lab stays up when only the agent process restarts and notes serve locally.
-- [ ] 3.3 Document startup, local database, environment keys, and simulator reset; verify a clean checkout can follow the documented commands.
+- [x] 3.3 Document startup, local database, environment keys, and simulator reset; verify a clean checkout can follow the documented commands.
