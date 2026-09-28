@@ -20,6 +20,7 @@ export const incidentAgent = inngest.createFunction(
     name: "Incident response agent",
     triggers: { event: "lab/run.started" },
     retries: 2,
+    cancelOn: [{ event: "lab/run.cancelled", match: "data.runId" }],
     onFailure: async ({ error, event }) => {
       const original = event.data.event as { data?: { runId?: string } };
       if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
@@ -35,6 +36,8 @@ export const incidentAgent = inngest.createFunction(
     while (decisions < 12) {
       cycle += 1;
       const currentLab = await activeLab();
+      const currentRun = await getRun(runId);
+      if (currentRun.status === "cancelled") return;
       if (currentLab?.id !== labId) {
         await step.run(`scenario-reset-${cycle}`, () => setRun(runId, "cancelled", "Scenario was reset"));
         return;
