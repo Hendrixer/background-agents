@@ -5,7 +5,7 @@ A working final app does not make a teachable live course. Each lesson needs a r
 ## What Changes
 
 - Create six ordered lesson checkpoints from starter to final solution.
-- Add Markdown lesson pages with exact contextual diffs or complete new-function code blocks.
+- Add student-facing Markdown lessons in the teacher's voice, with conceptual explanations before exact contextual diffs or complete new-function code blocks.
 - Host the notes locally with VitePress, alongside the lab.
 - Document schedule, demos, failure experiments, setup, and safe catch-up commands.
 - Add a branch-diff checker so displayed code remains aligned with the solution snapshots.
