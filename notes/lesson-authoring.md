@@ -1,6 +1,6 @@
 # Lesson notes and code authoring contract
 
-Status: updated to Scott's preferred code-block format, September 28, 2026. No application code or checkpoint hashes have been authored yet.
+Status: six lesson pages and checkpoints built, September 28, 2026. Code blocks are generated from branch diffs by `scripts/build_notes.py` and verified with `--check`.
 
 ## Purpose
 
