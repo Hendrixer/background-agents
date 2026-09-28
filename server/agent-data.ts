@@ -50,7 +50,7 @@ export async function cancelRun(runId: string) {
 export async function agentState(labId: string) {
   const lab = await findLab(labId);
   const [recentObservations, recentEvents, recentActions, recentApprovals] = await Promise.all([
-    db.select().from(observations).where(eq(observations.labId, labId)).orderBy(desc(observations.createdAt)).limit(8),
+    db.select().from(observations).where(eq(observations.labId, labId)).orderBy(desc(observations.createdAt)).limit(12),
     db.select().from(events).where(eq(events.labId, labId)).orderBy(desc(events.createdAt)).limit(8),
     db.select().from(actions).where(eq(actions.labId, labId)).orderBy(desc(actions.createdAt)).limit(8),
     db.select().from(approvals).where(eq(approvals.labId, labId)).orderBy(desc(approvals.createdAt)).limit(4),
