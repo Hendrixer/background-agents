@@ -12,15 +12,15 @@ The lab SHALL offer feature rollout, faulty release, and upstream outage scenari
 - **THEN** a new instance begins with an unhealthy service, the problematic feature enabled, and a distinct instance identifier
 
 ### Requirement: Event generation controls
-The lab SHALL let an operator select event types and a bounded emission rate, start and stop the server-side producer, emit one event, and emit a bounded burst. The UI SHALL show whether production is running and when the last event was emitted.
+The lab SHALL let an operator send a finite server-side event plan with a bounded count, interval, and either one event type or a weighted mix. The UI SHALL show plan progress and allow the operator to stop a running plan. A one-event plan SHALL use the same path as a larger batch.
 
 #### Scenario: Stop generation
-- **WHEN** the operator stops the generator
+- **WHEN** the operator stops the active plan
 - **THEN** no further automatic events are emitted and the service and agent run state remain unchanged
 
 #### Scenario: Browser closes
 - **WHEN** the operator closes the browser while generation is running
-- **THEN** the server continues producing events until stopped
+- **THEN** the server continues producing events until the plan completes or is stopped
 
 ### Requirement: Authoritative observations
 The lab SHALL expose current service state and recent observations to its agent API. Observations SHALL reflect applied operations and SHALL identify their collection time, so an agent can reject stale evidence.
@@ -37,11 +37,11 @@ The lab SHALL accept operations with a stable action identifier and associate ea
 - **THEN** the lab returns its prior result and records no second effect
 
 ### Requirement: Operator dashboard
-The UI SHALL put the agent inbox on its home route. It SHALL offer separate routes for the simulated service condition, server event log, per-run agent activity and reports, and simulator administration. The inbox SHALL let an operator approve or deny an action and answer or decline a help request. The service page SHALL identify its health and error signals as simulator-generated values.
+The UI SHALL have four routes: inbox, activity, events, and simulator administration. The inbox SHALL show a pending badge and let an operator approve or deny an action and answer or decline a help request. Activity SHALL present a scrollable run list and connected, phase-coded activity feed. Events SHALL show signals saved by the simulated service and sent toward Inngest. The simulator SHALL identify its health and error signals as generated values.
 
 #### Scenario: Inspect an incident
 - **WHEN** the operator opens the dashboard during an active scenario
-- **THEN** the operator can open the relevant route to inspect the service state, server events, or current run and wait reason without reading server logs
+- **THEN** the operator can inspect server events, the current scenario condition, or a run's actions and wait reason without reading server logs
 
 ### Requirement: Local course setup
 The course SHALL start locally with documented npm commands, PostgreSQL configuration, a separate agent process endpoint, and a local Markdown notes site. Credentials SHALL come from ignored environment files.

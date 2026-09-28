@@ -8,7 +8,7 @@ export default defineConfig({
   themeConfig: {
     nav: [{ text: "Incident Lab", link: "http://127.0.0.1:5173" }],
     sidebar: [
-      { text: "Workshop", link: "/" },
+      { text: "00 · Course introduction", link: "/" },
       { text: "01 · Give the agent a goal", link: "/01-goal-and-harness/" },
       { text: "02 · Make progress durable", link: "/02-durable-execution/" },
       { text: "03 · Wait for the world", link: "/03-events-and-waiting/" },

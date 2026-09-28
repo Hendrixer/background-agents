@@ -13,15 +13,15 @@ The project currently contains course planning documents and an environment file
 1. Use a small Express lab server and a separate Express agent endpoint. The lab owns the simulator and database writes; the agent will later expose Inngest functions. Restarting one process will not restart the other. A monolithic server would undermine the restart demo.
 2. Use local PostgreSQL through `postgres` and Drizzle. A compact schema holds scenario instances, observations, events, actions, decisions, and reports. SQL migrations remain in the starter; students do not write them. In-memory state would be lost during process demonstrations.
 3. Use one active scenario instance at a time. Reset creates a new ID and retains old records. This avoids complex tenancy while making stale events and approvals easy to distinguish.
-4. Use server-side timer generation at a bounded rate. Generation reads the active instance and persists each event; browser refresh does not affect it. A dedicated queue would add infrastructure without helping the workshop.
+4. Use server-side timer generation for a persisted, finite plan. A plan records its count, interval, type percentages, progress, and status. Generation resumes after a lab-server restart, and browser refresh does not affect it. A dedicated queue would add infrastructure without helping the workshop.
 5. Make simulated remediation change domain state. Health generation derives from the active scenario and current release/flag/dependency settings. The agent can verify recovery from fresh evidence.
-6. Build a React/Vite operator app whose home route is an actionable agent inbox. Give service state, server events, agent runs, and simulator controls focused routes. Persist a per-run activity log in PostgreSQL so the operator can inspect the harness loop; use Inngest separately for execution traces. Label health observations as synthetic signals derived from scenario state. VitePress serves Markdown lesson notes separately.
+6. Build a React/Vite operator app with four routes: Inbox, Activity, Events, and Simulator. Activity has a scrollable run list and a connected, phase-coded feed. Persist the per-run activity log in PostgreSQL so the operator can inspect the harness loop; use Inngest separately for execution traces. Label health observations as synthetic signals derived from scenario state. VitePress serves Markdown lesson notes separately.
 7. Give each operation a caller-provided action ID. The lab stores the result before responding, so later retry lessons can demonstrate an acknowledgement failure without duplicating the effect.
 
 ## Risks / Trade-offs
 
 - [Reset while a run is active] → use a fresh scenario ID; later harness logic rejects mismatched actions and exposes the prior run separately.
-- [High event rates flood the UI] → bound the rate and return limited recent history; persist the full event record locally.
+- [Too many events flood the UI] → bound plan count and interval, return limited recent history, and persist the full event record locally.
 - [Student environment differs] → include a preflight command that checks Postgres, required environment variables, and the app endpoints with actionable errors.
 - [External model output varies] → keep scenario evidence reproducible and assert domain outcomes rather than exact tool order.
 
