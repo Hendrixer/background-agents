@@ -104,6 +104,7 @@ h1 { font-weight: 650; font-size: clamp(25px, 2.4vw, 32px); letter-spacing: -.05
 .chart-caption { display: flex; justify-content: space-between; color: #777780; font-size: 9px; font-weight: 650; letter-spacing: .08em; margin: 11px 0 21px; }
 .chart-caption span:last-child { color: #b2b2b9; font-weight: 500; letter-spacing: 0; }
 .legend-dot { width: 6px; height: 6px; display: inline-block; background: #bd777a; border-radius: 50%; margin-right: 5px; }
+.legend-good { background: #6baf89; }
 .service-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; }
 .service-facts div { border-left: 1px solid #34343a; padding-left: 10px; min-width: 0; }
 .service-facts span { display: block; color: #75757e; font-size: 10px; margin-bottom: 7px; }
