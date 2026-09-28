@@ -34,7 +34,7 @@ Human availability is another design constraint. What happens when the person is
 
 ## See it in the lab
 
-Reset **Faulty release** and start health and log events at **1/sec**. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in the timeline before we add the inbox gate.
+On `/admin`, reset **Faulty release** and start health and log events at **1/sec**. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in the activity log on `/agent` before we add the inbox gate.
 
 ## Live coding
 
@@ -52,7 +52,7 @@ Import the supplied proposal storage helpers. They persist the exact request and
 +import { agentState, getProposal, getRun, hasRecovered, proposeAction, recordDecision, setIteration, setRun, staleProposal } from "./agent-data";
  import { chooseAction, writeReport } from "./agent-brain";
  import { inngest } from "./inngest";
- 
+ import { logAgentActivity } from "./agent-log";
 ```
 
 ### Edit 2 · `server/agent-workflow.ts`
@@ -84,7 +84,7 @@ Insert the rollback gate after `actionId` is computed and before `execute-action
 +        }
 +        if (approval.status !== "approved") continue;
 +
-+        const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId));
++        const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId, runId));
 +        if (fresh.service.release !== input.expectedRelease) {
 +          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
 +          continue;
@@ -100,7 +100,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start an agent on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the UI. The rollback should happen once and the run should verify recovery. Reset and repeat with Reject to see `escalated`.
+Start an agent from `/agent` on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the inbox on `/`. The rollback should happen once and the run should verify recovery. Reset and repeat with Deny to see `escalated`.
 
 ## Break it on purpose
 
@@ -114,6 +114,6 @@ Treat an approval as a capability with a scope and lifetime. Write down its subj
 
 Your solution is `lesson-5`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 4 progress"`, then `git switch lesson-5`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 
-**Common mistake:** Do not approve a proposal from an older lab reset. The dashboard only shows the current lab; reset creates a new lab ID. If approval seems stuck, inspect the `wait-for-approval-*` trace and the saved proposal status.
+**Common mistake:** Do not approve a proposal from an older lab reset. The inbox shows requests for the current lab; reset creates a new lab ID. If approval seems stuck, inspect the `wait-for-approval-*` trace and the saved proposal status.
 
 **Optional extension:** Add a second gated action and decide whether it should require the same approval shape or a different one.

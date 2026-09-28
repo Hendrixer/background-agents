@@ -14,6 +14,8 @@ The loop we will build is small: **observe the current world → choose one next
 
 The incident lab gives us a concrete world to observe. `agentState` returns the service state, recent events, recent actions, and human decisions. Those are facts for the next decision, not a transcript to blindly replay. The model returns one structured choice. The harness performs the selected operation and checks the result. The first version puts that entire loop inside one long step. It works for the feature incident, but if the process disappears halfway through, we cannot tell which internal actions were already done. We will make that flaw visible before fixing it.
 
+The checkout service is a simulation, and the dashboard now says so explicitly. A small scenario rule determines whether the service is healthy; health events turn that rule into timestamped observations with a generated error signal. This gives us reproducible evidence for the workshop, not a claim that we measured real user traffic. In a production system I would ask where the signal came from, how fresh it is, whether it represents customers, and what false positives would cost before letting it end a run.
+
 Not every task needs this architecture. If one model call can answer a question and nothing needs to happen later, keep it simple. Use a background agent when the goal needs multiple observations, actions, waits, or human decisions and when progress must survive the original request. The goal is more productive autonomy with clear boundaries, not a larger loop for its own sake.
 
 Before coding, decide which parts you would trust to the model in this incident and which parts you would insist the application control. We will revisit that boundary in every lesson.
@@ -36,7 +38,7 @@ If the correct remediation could be expressed completely as `if release === "v2-
 
 ## See it in the lab
 
-Reset **Feature rollout**, select **health** and **log**, set **2/sec**, and start events. Checkout is degraded before any agent run exists. The changing service is the environment our agent must observe; the browser is only a way to start and inspect the work.
+On `/admin`, reset **Feature rollout**, select **health** and **log**, set **2/sec**, and start events. Checkout is degraded before any agent run exists. The changing service is the environment our agent must observe; the browser is only a way to start and inspect the work.
 
 ## Live coding
 
@@ -66,7 +68,7 @@ Replace the placeholder handler inside `incidentAgent`. Follow the loop in order
 +          return;
 +        }
 +
-+        const state = await agentState(labId);
++        const state = await agentState(labId, runId);
 +        if (state.service.healthy && state.observations.length > 0) {
 +          const report = await writeReport(run.goal, state);
 +          await setRun(runId, "completed", null, report);
@@ -100,7 +102,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start an agent from the UI with the supplied goal. Watch which action your model selects; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.
+Start an agent from `/agent` with the supplied goal. Watch which action your model selects; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.
 
 ## Break it on purpose
 
