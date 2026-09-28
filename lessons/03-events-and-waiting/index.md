@@ -1,15 +1,10 @@
 # 03 · Wait for the world
 
-**11:30–12:15 · 45 minutes**  
 Start: `lesson-3` · Finished solution: `lesson-4`
 
 **Outcome:** The run pauses on correlated events, wakes up, reloads state, and completes only after sustained fresh recovery.
 
-## Open and predict
-
-Reset **Feature rollout** and stop the event stream before starting an agent. Our current code polls every two seconds. When an event wakes the agent later, should it trust that event payload or read the service again?
-
-## The idea
+## The engineering idea
 
 The world does not wait for an agent's loop. Traffic changes, deployments finish, and humans act while the agent is doing something else. A background agent needs a way to stop running and wake when there may be something new to consider. Polling every two seconds works in our tiny lab, but it turns “nothing happened” into repeated executions and obscures the real cause of progress.
 
@@ -17,11 +12,29 @@ I think of an event as a **doorbell**, not as the room itself. `lab/observation`
 
 `step.waitForEvent` suspends the Inngest run until a matching event or timeout. It does not need an open browser tab or a continuously running request. The timeout is useful as a reconciliation point: if a wakeup was missed, we read the authoritative state again and decide whether to wait more. The [Inngest wait reference](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event) notes an important race: a wait listens for events from the time it is established, so an event sent just before it can be missed. Reading state before and after waits keeps the system from treating the notification stream as the only truth.
 
-Waiting is not the same as finishing. Our first completion check accepts one healthy observation. That is too easy for a noisy service: one good sample could follow many failures. We will add `hasRecovered` as an application-owned predicate. It requires the three latest health observations to be healthy, fresh, and spread over a minimum interval. The exact numbers are lab-sized teaching defaults; a real service would choose a recovery window based on its signals and risk.
+Waiting is not the same as finishing. Our first completion check accepts one healthy observation. That is too easy for a noisy service: one good sample could follow many failures. We will add `hasRecovered` as an application-owned predicate. It requires a streak of at least three healthy observations, a fresh latest sample, and a minimum span between the oldest and newest healthy samples. The exact numbers are lab-sized teaching defaults; a real service would choose a recovery window based on its signals and risk.
 
 This is the pattern I want you to remember: **wake on events, read current state, decide whether to act, wait, or end**. A schedule can be another source of wakeups. A webhook, a human reply, or another agent can ring the same doorbell. The harness keeps the goal and the safety rules stable across all of them.
 
 When we stop the simulator, predict what should happen to the run. It should become visibly waiting, use no new model decisions on unchanged evidence, and continue once observations resume.
+
+### Events are hints; state is evidence
+
+An event tells us that something may have changed. It can be duplicated, delayed, or delivered just before we start waiting. That is why the payload contains a correlation key, `labId`, and why the next cycle calls `agentState` again. We do not ask the event to certify recovery. [Inngest documents the wait timing](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event): an event sent before a wait is established can be missed. Our timeout is a reconciliation mechanism, not proof that the event system is perfectly reliable.
+
+The design question is not simply “poll or subscribe?” It is **what happens when the notification is missing?** A system that only reacts to events can stall. A system that polls every second may waste work and obscure causality. We combine event-triggered wakeups with periodic re-reads of authoritative state. In a larger system I would choose the timeout based on how long the goal may safely remain stale and how expensive each reconciliation is.
+
+### Define success without fooling yourself
+
+A single healthy sample is a weak stopping rule. Three samples taken in a few milliseconds are also weak. Our predicate therefore checks both count and elapsed time, and it rejects a streak interrupted by an unhealthy sample. This is a simple form of hysteresis: we demand sustained evidence before changing the run from waiting to complete. More samples reduce false positives but delay a legitimate completion. The right choice depends on the consequence of ending early, the cadence of measurements, and how noisy the signal is.
+
+This is one place where AI engineering is also ordinary systems engineering. The model can recommend `complete`, but it cannot waive the measured recovery condition. Conversely, a deterministic recovery predicate can end the run even if the model would keep talking. That separation prevents a persuasive report from becoming its own evidence. In the [agent evaluation vocabulary Anthropic uses](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), the final environment state is an outcome; the model's text is part of the trajectory. We should inspect both, but not confuse them.
+
+The current lab treats observations as trustworthy because it creates them locally. In a real incident, you would ask where each signal comes from, how old it is, what it measures, and whether one failed probe could hide behind an average. “Observe the world” is not a single API call; it is an evidence design problem.
+
+## See it in the lab
+
+Reset **Feature rollout**, stop the event stream, and start an agent. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then emit one health event and compare the timeline.
 
 ## Live coding
 
@@ -35,12 +48,16 @@ Add `hasRecovered` after the `AgentState` type. This is our deterministic defini
 
 ```ts
 export function hasRecovered(state: AgentState) {
-  const lastThree = state.observations.slice(0, 3);
-  if (lastThree.length < 3 || !lastThree.every((item) => item.healthy)) return false;
-  const newest = new Date(lastThree[0].at).getTime();
-  const oldest = new Date(lastThree[2].at).getTime();
-  if (Date.now() - newest > 20_000) return false;
-  return newest - oldest >= 1_500;
+  let healthySamples = 0;
+  let oldestHealthyAt = 0;
+  for (const item of state.observations) {
+    if (!item.healthy) break;
+    healthySamples += 1;
+    oldestHealthyAt = new Date(item.at).getTime();
+  }
+  if (healthySamples < 3) return false;
+  const newest = new Date(state.observations[0].at).getTime();
+  return Date.now() - newest <= 20_000 && newest - oldestHealthyAt >= 1_500;
 }
 ```
 
@@ -114,13 +131,17 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the run with events stopped. The UI should show `waiting`. Emit one health event: the run wakes but must not complete. Resume the stream; after remediation and three fresh healthy observations, it completes and writes a report.
+Start the run with events stopped. The UI should show `waiting`. Emit one health event: the run wakes but must not complete. Resume the stream; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster event rate needs more than three samples to span that interval.
 
-## Failure experiment
+## Break it on purpose
 
 Stop events again while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Restart events and watch it resume.
 
-## Catch-up checkpoint
+## Engineering challenge
+
+Change `hasRecovered` to require five fresh healthy observations instead of three and rerun the feature incident. Measure the extra time to completion. What failure does the longer window catch, and what real outage would it delay? Restore the course version afterward. Design a second signal you would require in a real checkout service, and decide whether a late `lab/observation` is evidence or merely a reason to read state again.
+
+## Catch up
 
 Your solution is `lesson-4`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 3 progress"`, then `git switch lesson-4`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 
