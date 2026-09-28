@@ -9,7 +9,7 @@ Status: reference app and six teaching checkpoints built, September 28, 2026. In
 - Students bring a working LLM API key. No keyless runtime is required.
 - Build an incident-response agent operating a small local demo service.
 - Supply the UI, simulator, fixture data, and routine plumbing as starter code.
-- Include event type, rate, start, stop, and manual injection controls in the UI.
+- Include finite event batches with count, interval, event type or weighted mix, send, and stop controls in the UI.
 - Scott live codes on the mirrored main screen and reads notes on a small podium monitor.
 - Every lesson has Markdown notes containing the exact code changes and their locations.
 - New files/functions use normal code blocks. Existing-code edits use contextual diffs with unchanged surrounding lines, green additions, and red removals.

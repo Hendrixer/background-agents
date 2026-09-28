@@ -42,9 +42,10 @@ Audience:
     - A working LLM API key with available usage credits is required for the hands-on exercises.
 
 Agenda:
-  Overview: Build an incident-response agent across six hands-on lessons, progressing from a goal-driven loop to durable execution, event-driven waiting, human approval, safe retries, and a final incident drill. Each lesson is followed by at least 15 minutes for a break and catch-up, with lunch after lesson three.
+  Overview: Start with the course architecture and branch workflow, then build an incident-response agent across six hands-on lessons. Progress from a goal-driven loop to durable execution, event-driven waiting, human approval, safe retries, and a final incident drill. Each coding lesson is followed by time for a break and catch-up, with lunch after lesson three.
   Schedule:
-    - "0930": Give the agent a goal — state, actions, and the core harness
+    - "0930": Course introduction — the architecture, local lab, and lesson branches
+    - "0945": Give the agent a goal — state, actions, and the core harness
     - "1015": Break and catch-up
     - "1030": Make progress durable — checkpoint and resume with Inngest
     - "1115": Break and catch-up
