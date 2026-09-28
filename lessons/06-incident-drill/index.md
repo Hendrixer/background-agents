@@ -36,7 +36,7 @@ My opinion is that the product is the *continuing relationship* between a person
 
 ## See it in the lab
 
-On `/admin`, reset **Upstream outage** and start health, log, and dependency events. The local controls cannot repair the payment gateway. Follow the run through the inbox on `/`, then leave the dependency unavailable after answering so you can see the difference between receiving information and reaching the goal.
+On `/admin`, create **Upstream outage**, start an agent, and send a mixed batch of 15 events one second apart: 60% health, 20% log, 20% dependency. The local controls cannot repair the payment gateway. Follow the run through the inbox on `/`, then leave the dependency unavailable after answering so you can see the difference between receiving information and reaching the goal.
 
 ## Live coding
 
@@ -99,7 +99,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Upstream outage run from `/agent`. Answer the agent in the inbox on `/`, then click **Simulate upstream recovery** on `/admin`. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and `/agent` activity aloud to reconstruct the run.
+Start the Upstream outage run from `/admin`. Answer the agent in the inbox on `/`, then click **Simulate upstream recovery** on `/admin` and send a new batch of health events one second apart. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and `/activity` aloud to reconstruct the run.
 
 ## Break it on purpose
 
@@ -113,6 +113,6 @@ Build an evaluation card for each incident: the required final service state, fo
 
 Your solution is `complete`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 6 progress"`, then `git switch complete`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
 
-**Common mistake:** If the model keeps asking for help, confirm the saved human decision is `approved` and inspect `agentState.humanDecisions`. If the service is healthy but completion has not happened, ensure health events continue long enough for the recovery window.
+**Common mistake:** If the model keeps asking for help, confirm the saved human decision is `approved` and inspect `agentState.humanDecisions`. If the service is healthy but completion has not happened, send enough spaced health events for the recovery window.
 
 **Optional extension:** Propose one different terminal policy, such as an explicit unresolved report after a configured deadline. Identify which part belongs to the model versus the harness.
