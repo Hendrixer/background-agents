@@ -140,7 +140,7 @@ All checkpoint branches above exist. The shared notes and generator are kept on 
 
 Students can type along, copy a complete edit block, or take the next checkpoint during the break. Catch-up instructions must preserve unfinished student work, including untracked files. Do not teach `git reset --hard` or delete student work as the default recovery path.
 
-Keep `.env`, local databases, simulator state, and runtime history out of Git. Document when branch switching requires stopping a run, resetting only the lab scenario, or restarting processes. A code checkout does not roll back persisted workflow history.
+Keep `.env`, Neon credentials, simulator state, and runtime history out of Git. Document when branch switching requires stopping a run, resetting only the lab scenario, or restarting processes. A code checkout does not roll back persisted database or workflow history.
 
 For the local docs server, keep the port separate from the app and Inngest. The final starter should expose `npm run docs`, `npm run docs:build`, and clear restart instructions if a branch change affects the running site.
 
