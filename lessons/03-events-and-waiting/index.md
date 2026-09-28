@@ -34,7 +34,7 @@ The current lab treats observations as trustworthy because it creates them local
 
 ## See it in the lab
 
-On `/admin`, reset **Feature rollout**, stop the event stream, and start an agent from `/agent`. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then emit one health event and compare the server events on `/events` with the run activity on `/agent`.
+On `/admin`, create **Feature rollout** and start an agent without sending events. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then send one health event and compare `/events` with the run activity on `/activity`.
 
 ## Live coding
 
@@ -134,11 +134,11 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the run from `/agent` with events stopped. The run page should show `waiting`. Emit one health event on `/admin`: the run wakes but must not complete. Resume the stream; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster event rate needs more than three samples to span that interval.
+Start the run from `/admin` without sending events. `/activity` should show `waiting`. Send one health event: the run wakes but must not complete. Then send 12 health events one second apart; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster interval needs more than three samples to span that window.
 
 ## Break it on purpose
 
-Stop events again while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Restart events and watch it resume.
+Let the first batch finish while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Send another batch and watch it resume.
 
 ## Engineering challenge
 

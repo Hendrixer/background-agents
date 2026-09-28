@@ -30,7 +30,7 @@ Cancellation has the same boundary. A cancellation event can prevent future step
 
 ## See it in the lab
 
-On `/admin`, reset **Feature rollout**, arm **Lose the next tool response**, and start health and log events. The first tool call commits but returns 503. Keep `/agent` and `/events` open: the state of the world and the response seen by the agent are now different.
+On `/admin`, create **Feature rollout**, arm **Lose the next tool response**, start an agent, and send 12 health events one second apart. The first tool call commits but returns 503. Keep `/activity` and `/events` open: the state of the world and the response seen by the agent are now different.
 
 ## Live coding
 
@@ -110,7 +110,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the `/agent` activity log and `actions` table, the matching committed action ID appears once, though attempts can appear more than once. Use **Cancel run** on `/agent` while a workflow waits and confirm it stops.
+Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the `/activity` log and `actions` table, the matching committed action ID appears once, though attempts can appear more than once. Use **Cancel run** on `/activity` while a workflow waits and confirm it stops.
 
 ## Break it on purpose
 
