@@ -37,11 +37,11 @@ The lab SHALL accept operations with a stable action identifier and associate ea
 - **THEN** the lab returns its prior result and records no second effect
 
 ### Requirement: Operator dashboard
-The UI SHALL display current service health, scenario controls, event activity, run status, timeline, pending human decisions, and final reports using a dark theme.
+The UI SHALL put the agent inbox on its home route. It SHALL offer separate routes for the simulated service condition, server event log, per-run agent activity and reports, and simulator administration. The inbox SHALL let an operator approve or deny an action and answer or decline a help request. The service page SHALL identify its health and error signals as simulator-generated values.
 
 #### Scenario: Inspect an incident
 - **WHEN** the operator opens the dashboard during an active scenario
-- **THEN** the service state, latest event, and current run or wait reason are visible without reading server logs
+- **THEN** the operator can open the relevant route to inspect the service state, server events, or current run and wait reason without reading server logs
 
 ### Requirement: Local course setup
 The course SHALL start locally with documented npm commands, PostgreSQL configuration, a separate agent process endpoint, and a local Markdown notes site. Credentials SHALL come from ignored environment files.

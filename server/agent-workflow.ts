@@ -2,16 +2,27 @@ import { activeLab, addTimeline } from "./lab-data";
 import { agentState, getRun, recordDecision, setIteration, setRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
+import { logAgentActivity } from "./agent-log";
 
 async function executeAction(labId: string, actionId: string, name: string) {
-  const response = await fetch("http://127.0.0.1:3001/api/ops/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ labId, actionId, name }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || `Tool failed: ${response.status}`);
-  return result;
+  const runId = actionId.split(":")[0];
+  await logAgentActivity(labId, runId, "act", `Calling ${name.replaceAll("_", " ")}`, { actionId });
+  try {
+    const response = await fetch("http://127.0.0.1:3001/api/ops/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ labId, actionId, name }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Tool failed: ${response.status}`);
+    await logAgentActivity(labId, runId, "act", `${name.replaceAll("_", " ")} returned successfully`, { actionId });
+    return result;
+  } catch (error) {
+    await logAgentActivity(labId, runId, "act", `${name.replaceAll("_", " ")} attempt failed`, {
+      actionId, error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 export const incidentAgent = inngest.createFunction(
@@ -37,7 +48,7 @@ export const incidentAgent = inngest.createFunction(
           return;
         }
 
-        const state = await agentState(labId);
+        const state = await agentState(labId, runId);
         if (state.service.healthy && state.observations.length > 0) {
           const report = await writeReport(run.goal, state);
           await setRun(runId, "completed", null, report);
