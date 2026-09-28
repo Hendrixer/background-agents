@@ -8,7 +8,7 @@
     "dev:agent": "INNGEST_DEV=1 tsx watch server/agent.ts",
     "dev:web": "vite --host 127.0.0.1",
     "dev:inngest": "inngest dev -u http://127.0.0.1:3002/api/inngest",
-    "docs": "vitepress dev lessons --port 5174",
+    "docs": "vitepress dev lessons --port 5174 --host 127.0.0.1",
     "docs:build": "vitepress build lessons",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx server/seed.ts",
