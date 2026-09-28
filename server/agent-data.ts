@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { actions, approvals, events, observations, runs, timeline } from "./schema";
-import { activeLab, addTimeline, findLab, serviceHealth } from "./lab-data";
+import { activeLab, findLab, serviceHealth } from "./lab-data";
 import { inngest } from "./inngest";
+import { logAgentActivity } from "./agent-log";
 import type { ActionName } from "../shared/types";
 
 export async function startRun(labId: string, goal: string) {
@@ -13,7 +14,7 @@ export async function startRun(labId: string, goal: string) {
   if (existing) return existing;
 
   const [run] = await db.insert(runs).values({ id: randomUUID(), labId, goal, status: "running" }).returning();
-  await addTimeline(labId, "run", "Agent run started", { goal, runId: run.id }, run.id);
+  await logAgentActivity(labId, run.id, "start", "Goal accepted", { goal });
   try {
     await inngest.send({ id: `start-${run.id}`, name: "lab/run.started", data: { labId, runId: run.id } });
   } catch (error) {
@@ -33,7 +34,11 @@ export async function setRun(runId: string, status: string, waitReason: string |
   const run = await getRun(runId);
   if (["completed", "cancelled", "failed", "escalated"].includes(run.status)) return run;
   const [updated] = await db.update(runs).set({ status, waitReason, report: report ?? run.report, updatedAt: new Date() }).where(eq(runs.id, runId)).returning();
-  if (status !== run.status) await addTimeline(run.labId, "run", `Run ${status.replaceAll("_", " ")}`, { waitReason }, runId);
+  const phase = ["completed", "cancelled", "failed", "escalated"].includes(status)
+    ? "terminal" : status === "waiting" ? "pause" : status.startsWith("needs_") ? "human" : "resume";
+  if (status !== run.status || status === "waiting") {
+    await logAgentActivity(run.labId, runId, phase, `Run ${status.replaceAll("_", " ")}`, { waitReason });
+  }
   return updated;
 }
 
@@ -47,7 +52,7 @@ export async function cancelRun(runId: string) {
   return run;
 }
 
-export async function agentState(labId: string) {
+export async function agentState(labId: string, runId: string) {
   const lab = await findLab(labId);
   const [recentObservations, recentEvents, recentActions, recentApprovals] = await Promise.all([
     db.select().from(observations).where(eq(observations.labId, labId)).orderBy(desc(observations.createdAt)).limit(12),
@@ -56,7 +61,7 @@ export async function agentState(labId: string) {
     db.select().from(approvals).where(eq(approvals.labId, labId)).orderBy(desc(approvals.createdAt)).limit(4),
   ]);
 
-  return {
+  const state = {
     labId,
     service: { release: lab.release, featureEnabled: lab.featureEnabled, upstreamHealthy: lab.upstreamHealthy, ...serviceHealth(lab) },
     observations: recentObservations.map((item) => ({ healthy: item.healthy, errorRate: item.errorRate, at: item.createdAt.toISOString() })),
@@ -64,6 +69,21 @@ export async function agentState(labId: string) {
     actions: recentActions.map((item) => ({ name: item.name, result: item.result, at: item.createdAt.toISOString() })),
     humanDecisions: recentApprovals.filter((item) => item.status !== "pending").map((item) => ({ action: item.action, status: item.status, answer: item.reason })),
   };
+
+  const run = await getRun(runId);
+  if (run.labId !== labId) throw new Error("Run belongs to a different lab instance");
+  if (run.status === "waiting") {
+    await logAgentActivity(labId, runId, "resume", "Woke to recheck the service", { afterDecision: run.iteration });
+  }
+  await logAgentActivity(labId, runId, "observe", "Observed current service state", {
+    healthy: state.service.healthy,
+    errorRate: state.service.errorRate,
+    release: state.service.release,
+    featureEnabled: state.service.featureEnabled,
+    upstreamHealthy: state.service.upstreamHealthy,
+    latestObservationAt: state.observations[0]?.at ?? null,
+  });
+  return state;
 }
 
 export type AgentState = Awaited<ReturnType<typeof agentState>>;
@@ -85,7 +105,8 @@ export function hasRecovered(state: AgentState) {
 }
 
 export async function recordDecision(labId: string, runId: string, iteration: number, action: string, reason: string) {
-  await addTimeline(labId, "decision", `Decision ${iteration}: ${action.replaceAll("_", " ")}`, { reason }, runId);
+  await logAgentActivity(labId, runId, "loop", `Decision cycle ${iteration}`, { iteration });
+  await logAgentActivity(labId, runId, "predict", `Selected ${action.replaceAll("_", " ")}`, { iteration, action, reason });
 }
 
 export async function proposeAction(labId: string, runId: string, actionId: string, action: ActionName, input: Record<string, unknown>) {
@@ -94,7 +115,7 @@ export async function proposeAction(labId: string, runId: string, actionId: stri
     expiresAt: new Date(Date.now() + 10 * 60_000),
   }).returning();
   await setRun(runId, action === "request_help" ? "needs_help" : "needs_approval", action === "request_help" ? "Waiting for an answer" : `Waiting for ${action.replaceAll("_", " ")} approval`);
-  await addTimeline(labId, "approval", `Requested ${action.replaceAll("_", " ")}`, { proposalId: proposal.id, ...input }, runId);
+  await logAgentActivity(labId, runId, "human", action === "request_help" ? "Asked a human for help" : `Requested approval for ${action.replaceAll("_", " ")}`, { proposalId: proposal.id, ...input });
   return proposal;
 }
 
@@ -116,7 +137,7 @@ export async function decideProposal(proposalId: string, status: "approved" | "r
   }
   const [updated] = await db.update(approvals).set({ status, reason, decidedAt: new Date() }).where(and(eq(approvals.id, proposalId), eq(approvals.status, "pending"))).returning();
   if (!updated) return getProposal(proposalId);
-  await addTimeline(proposal.labId, "approval", `${proposal.action.replaceAll("_", " ")} ${status}`, { proposalId, reason }, proposal.runId);
+  await logAgentActivity(proposal.labId, proposal.runId, "human", proposal.action === "request_help" ? status === "approved" ? "Human answered help request" : "Human could not help" : `${proposal.action.replaceAll("_", " ")} ${status}`, { proposalId, reason });
   try {
     await inngest.send({ name: "lab/approval.decided", data: { proposalId, labId: proposal.labId, runId: proposal.runId } });
   } catch (error) {
@@ -128,5 +149,5 @@ export async function decideProposal(proposalId: string, status: "approved" | "r
 export async function staleProposal(proposalId: string) {
   const proposal = await getProposal(proposalId);
   await db.update(approvals).set({ status: "stale", reason: "Service changed before this action ran", decidedAt: new Date() }).where(eq(approvals.id, proposalId));
-  await addTimeline(proposal.labId, "approval", "Approved action became stale", { proposalId }, proposal.runId);
+  await logAgentActivity(proposal.labId, proposal.runId, "human", "Approved action became stale", { proposalId });
 }
