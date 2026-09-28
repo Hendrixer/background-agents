@@ -134,7 +134,7 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Feature rollout run from `/agent` and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
+Start the Feature rollout run from `/admin`, send 12 health events one second apart, and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
 
 ## Break it on purpose
 
