@@ -163,6 +163,14 @@ h1 { font-weight: 650; font-size: clamp(25px, 2.4vw, 32px); letter-spacing: -.05
 .approval-expiry { color: #777780; font-size: 10px; margin: 11px 0; }
 .approval-buttons { display: flex; gap: 7px; }
 .help-answer { width: 100%; resize: vertical; border: 1px solid #35353a; background: #171719; color: #e5e5e9; border-radius: 6px; padding: 9px; margin-bottom: 11px; font-size: 11px; }
+.inbox-history { margin-top: 18px; border-top: 1px solid #2d2d32; padding-top: 14px; }
+.inbox-history > span { display: block; color: #777780; font-size: 9px; font-weight: 700; letter-spacing: .1em; margin-bottom: 5px; }
+.inbox-history-item { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 7px; border-bottom: 1px solid #27272b; padding: 9px 0; }
+.inbox-history-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.inbox-history-item div { display: flex; flex-direction: column; gap: 3px; }
+.inbox-history-item strong { text-transform: capitalize; font-size: 11px; font-weight: 560; }
+.inbox-history-item small { color: #777780; font-size: 9px; }
+.inbox-history-item p { width: 100%; color: #a4a4ab; font-size: 10px; line-height: 1.45; margin: 0; }
 .report-panel { min-height: 135px; }
 .report-panel .panel-header { margin-bottom: 10px; }
 .report-panel .panel-description { margin: 0; }

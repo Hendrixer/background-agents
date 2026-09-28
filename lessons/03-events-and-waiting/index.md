@@ -7,13 +7,21 @@ Start: `lesson-3` · Finished solution: `lesson-4`
 
 ## Open and predict
 
-With Feature rollout reset, stop the event stream before starting an agent. The current code polls every two seconds. Ask: “What state should the agent trust after it wakes?”
-
-Instructor cue: spend about 8 minutes on the idea, 5 minutes on this demo and prediction, 25 minutes coding, and 7 minutes verifying. Leave the scheduled catch-up break intact.
+Reset **Feature rollout** and stop the event stream before starting an agent. Our current code polls every two seconds. When an event wakes the agent later, should it trust that event payload or read the service again?
 
 ## The idea
 
-The event is a wakeup signal, not the truth. Match it to this lab instance, then read the latest state again. A timeout is a reconciliation opportunity when delivery is missed. Completion is owned by `hasRecovered`: three recent healthy observations spread across time, so one green sample cannot prematurely end the run.
+The world does not wait for an agent's loop. Traffic changes, deployments finish, and humans act while the agent is doing something else. A background agent needs a way to stop running and wake when there may be something new to consider. Polling every two seconds works in our tiny lab, but it turns “nothing happened” into repeated executions and obscures the real cause of progress.
+
+I think of an event as a **doorbell**, not as the room itself. `lab/observation` tells this run that the lab may have changed. We correlate the event with `labId`, then call `agentState` again to read the current service, observations, actions, and human decisions. The event payload does not get to declare the goal complete. This separation matters because events can be delayed, duplicated, or arrive in an order that no longer describes the latest state.
+
+`step.waitForEvent` suspends the Inngest run until a matching event or timeout. It does not need an open browser tab or a continuously running request. The timeout is useful as a reconciliation point: if a wakeup was missed, we read the authoritative state again and decide whether to wait more. The [Inngest wait reference](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event) notes an important race: a wait listens for events from the time it is established, so an event sent just before it can be missed. Reading state before and after waits keeps the system from treating the notification stream as the only truth.
+
+Waiting is not the same as finishing. Our first completion check accepts one healthy observation. That is too easy for a noisy service: one good sample could follow many failures. We will add `hasRecovered` as an application-owned predicate. It requires the three latest health observations to be healthy, fresh, and spread over a minimum interval. The exact numbers are lab-sized teaching defaults; a real service would choose a recovery window based on its signals and risk.
+
+This is the pattern I want you to remember: **wake on events, read current state, decide whether to act, wait, or end**. A schedule can be another source of wakeups. A webhook, a human reply, or another agent can ring the same doorbell. The harness keeps the goal and the safety rules stable across all of them.
+
+When we stop the simulator, predict what should happen to the run. It should become visibly waiting, use no new model decisions on unchanged evidence, and continue once observations resume.
 
 ## Live coding
 
@@ -23,7 +31,7 @@ These code blocks are the exact changes between the start and solution branches.
 
 ### Edit 1 · `server/agent-data.ts`
 
-Add this new function immediately after `export type AgentState`. The `recordDecision` function below it stays where it is.
+Add `hasRecovered` after the `AgentState` type. This is our deterministic definition of “done”; the model does not get to relax it. The `recordDecision` function below it stays where it is.
 
 ```ts
 export function hasRecovered(state: AgentState) {
@@ -38,7 +46,7 @@ export function hasRecovered(state: AgentState) {
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Import the new predicate into the workflow before using it.
 
 ```diff
  import { activeLab, addTimeline } from "./lab-data";
@@ -51,7 +59,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 3 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Replace the one-sample success condition with `hasRecovered(state)`. The report runs only after that check passes.
 
 ```diff
  
@@ -66,7 +74,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 4 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+When we have no observation or are waiting on enough healthy samples, suspend on a lab-correlated event instead of polling.
 
 ```diff
  
@@ -81,7 +89,7 @@ Open `server/agent-workflow.ts` and find the surrounding function or configurati
 
 ### Edit 5 · `server/agent-workflow.ts`
 
-Open `server/agent-workflow.ts` and find the surrounding function or configuration shown in this block. Apply this hunk before the next edit.
+Use the same event-driven wait after an early `complete` proposal and after an operation. The next loop reads current state again.
 
 ```diff
  
