@@ -18,7 +18,7 @@ My rule for unattended agents is to make the failure modes visible. Show the ret
 
 ### A retry is a request for the same intent
 
-The [AWS Builders Library explanation of idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) makes a distinction I want us to use: two requests with the same parameters are not necessarily the same *intent*. A customer might deliberately place two identical orders. A stable client-generated request ID lets the service tell an intended retry from a new operation. Our `actionId` is that intent key. It must stay the same across transport attempts, and a service should reject a reused key if its action or arguments conflict with the original request.
+The [AWS Builders Library explanation of idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) makes a distinction I want us to use: two requests with the same parameters are not necessarily the same *intent*. A customer might deliberately place two identical orders. A stable client-generated request ID lets the service tell an intended retry from a new operation. Our `actionId` is that intent key. It must stay the same across transport attempts. The lab checks that a reused key belongs to the same lab, but it does not compare the original action and arguments. A production service should reject a reused key when that request fingerprint differs; otherwise it might return an old result for a different command.
 
 The transaction boundary matters. If we record the key before the effect and crash, we may falsely claim success. If we apply the effect and record the key in separate transactions, a crash between them can repeat the effect. In the lab, the action row and service change belong to one database transaction. That gives us a concrete guarantee for our own database. It does not create an atomic transaction with an external payment or deployment provider. For that case, I need the provider's idempotency facility, a query to reconcile an uncertain result, or an explicit `unknown` state that stops the agent from guessing.
 
@@ -118,7 +118,7 @@ Before adding the `applyAction` edits, the retry inserts a second action row bec
 
 ## Engineering challenge
 
-Imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop.
+First, reuse one action ID with a different action or input. What result does this lab return, and what conflict check would a production API need? Then imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop.
 
 ## Catch up
 
