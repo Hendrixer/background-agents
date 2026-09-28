@@ -1,7 +1,7 @@
 ## 1. Project setup
 
 - [x] 1.1 Add npm scripts, dependencies, TypeScript and Vite configuration, and ignored environment examples; verify install and typecheck succeed.
-- [x] 1.2 Create a dedicated local PostgreSQL database and Drizzle schema/setup command; verify the schema exists and setup can run twice.
+- [x] 1.2 Create a free temporary Neon PostgreSQL database and Drizzle schema/setup command; verify the schema exists and setup can run twice.
 
 ## 2. Incident domain
 
@@ -14,4 +14,4 @@
 
 - [x] 3.1 Build the four-route operator app with inbox, run activity, server events, and simulator; verify the request reading pane, response controls, and per-run activity log in a browser.
 - [x] 3.2 Add a separate Inngest endpoint process scaffold and local VitePress notes site; verify lab stays up when only the agent process restarts and notes serve locally.
-- [x] 3.3 Document startup, local database, environment keys, and simulator reset; verify a clean checkout can follow the documented commands.
+- [x] 3.3 Document startup, Neon connection string, environment keys, expiry, and simulator reset; verify a clean checkout can follow the documented commands.

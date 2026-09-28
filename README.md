@@ -12,33 +12,35 @@ A one-day, hands-on Node.js workshop. Students build the agent and harness while
 | Inngest Dev Server | http://127.0.0.1:8288 | Durable execution and step traces |
 | Lesson notes | http://127.0.0.1:5174 | Markdown site, started separately |
 
-PostgreSQL stores the lab's authoritative state and a per-run agent activity log. Inngest stores workflow checkpoints and execution traces. Keep the Inngest Dev Server running while restarting the agent process for the durability demonstration.
+Neon-hosted PostgreSQL stores the lab's authoritative state and a per-run agent activity log. Inngest stores workflow checkpoints and execution traces. Keep the Inngest Dev Server running while restarting the agent process for the durability demonstration.
 
 ## Prerequisites
 
-- Node.js LTS, npm, Git, and local PostgreSQL.
+- Node.js LTS, npm, Git, and an internet connection. No local PostgreSQL installation or Neon account is required for the workshop.
 - A working OpenAI API key and a model available to your account.
 
 ## Setup
 
 ```bash
 npm install
-createdb background_agents
+cp .env.example .env
 ```
 
-If the database already exists, skip `createdb`. Add these values to `.env`; keep any Inngest keys already present:
+Open [neon.new](https://neon.new/), create a free temporary Postgres database in the browser, and copy its **PostgreSQL connection string**. Paste the entire string, including its SSL parameters, into `DATABASE_URL` in `.env`. The claim URL is for keeping the database later; it is not the connection string. Add your model credentials and keep any Inngest keys already present:
 
 ```dotenv
-DATABASE_URL=postgres://localhost:5432/background_agents
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
 OPENAI_API_KEY=your-key
 OPENAI_MODEL=your-available-model
 ```
+
+The URL above is a shape example; use the actual one Neon gives you. Keep `.env` private and out of Git. An unclaimed neon.new database expires after **72 hours**. That covers the one-day workshop; for later practice, create a new database and rerun `npm run db:push` and `npm run db:seed`, or claim the existing one before it expires. Neon says neon.new is being sunset in favor of [Claimable Neon](https://neon.com/claimable-neon), so VOD students should use Neon's current no-account flow if the old page has moved.
 
 The local Inngest Dev Server does not require a cloud account. Existing `INNGEST_SIGNING_KEY` and `INNGEST_EVENT_KEY` values can remain in `.env`. The `dev` scripts set `INNGEST_DEV=1` explicitly.
 
 For an instructor rehearsal with repeatable model choices, run only the agent process with `AGENT_DEMO_MODE=1 npm run dev:agent`. Students use their own API key for the normal model path.
 
-Apply the schema and seed the first incident:
+Apply the schema to Neon and seed the first incident:
 
 ```bash
 npm run db:push
@@ -47,7 +49,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open the dashboard and wait for the agent endpoint to appear in the Inngest Dev Server. Run only one copy of each local process so the lab, agent, and Inngest use the same database and ports. In another terminal, run `npm run docs` for the notes site.
+Open the dashboard and wait for the agent endpoint to appear in the Inngest Dev Server. Run only one copy of each local process so the lab and agent use the same Neon database and ports. In another terminal, run `npm run docs` for the notes site.
 
 For a durability demo, run `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. Restart only `dev:agent` while a run is waiting for approval.
 
