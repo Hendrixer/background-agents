@@ -14,20 +14,31 @@ if (process.env.AGENT_DEMO_MODE !== "1") {
   }
 }
 
-const url = process.env.DATABASE_URL || "postgres://localhost:5432/background_agents";
-const sql = postgres(url, { max: 1, connect_timeout: 3 });
-try {
-  const [row] = await sql`select to_regclass('public.labs') as labs`;
-  if (!row.labs) problems.push("Database is reachable, but the schema is missing. Run npm run db:push.");
-} catch {
-  problems.push("Cannot connect to the workshop database. Start PostgreSQL and create the background_agents database.");
-} finally {
-  await sql.end({ timeout: 1 });
+const url = process.env.DATABASE_URL?.trim();
+if (!url) {
+  problems.push("Set DATABASE_URL in .env to the PostgreSQL connection string from https://neon.new/.");
+} else {
+  let sql;
+  try {
+    const parsed = new URL(url);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !parsed.hostname) {
+      throw new Error("Invalid PostgreSQL URL");
+    }
+    sql = postgres(url, { max: 1, connect_timeout: 10 });
+    const [row] = await sql`select to_regclass('public.labs') as labs`;
+    if (!row.labs) problems.push("Database is reachable, but the schema is missing. Run npm run db:push.");
+  } catch {
+    problems.push("Cannot connect with DATABASE_URL. Check the full Neon connection string in .env; if the temporary database expired, create a new one at https://neon.new/.");
+  } finally {
+    if (sql) await sql.end({ timeout: 1 });
+  }
 }
 
 if (problems.length) {
   for (const problem of problems) console.error(`✗ ${problem}`);
   process.exitCode = 1;
 } else {
-  console.log("✓ Node, database schema, and model environment are ready.");
+  console.log(process.env.AGENT_DEMO_MODE === "1"
+    ? "✓ Node and database schema are ready (instructor demo mode)."
+    : "✓ Node, database schema, and model environment are ready.");
 }

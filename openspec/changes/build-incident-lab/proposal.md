@@ -5,7 +5,7 @@ Students need a believable, repeatable incident to investigate without spending 
 ## What Changes
 
 - Create a local TypeScript operator app with four routes: an inbox home page, per-run activity, service events, and simulator administration. The simulator creates a scenario, starts one goal-driven run, and sends a finite event batch with count, interval, and event type or weighted mix controls.
-- Persist service state, events, actions, approvals, and reports in local PostgreSQL through Drizzle.
+- Persist service state, events, actions, approvals, and reports in a free temporary Neon PostgreSQL database through Drizzle.
 - Provide three incident presets with real state changes behind simulated operations: feature rollout, faulty release, and upstream outage.
 - Expose small, typed HTTP endpoints for service observations and operations; the later agent changes will consume these contracts.
 - Add a separate Node agent endpoint scaffold for Inngest and a local Markdown notes site.
