@@ -9,13 +9,13 @@ TeacherTitle: Netflix Engineer, Founder, & AI Builder
 Teachers:
   - moss
 
-Excerpt: Build an incident-response agent that watches a changing service, takes action, reaches you through an agent inbox, and resumes after events or failures. Learn how to put the harness in control with durable execution, human decisions, safe retries, and observable state.
+Excerpt: Build an event-triggered incident agent that reads current service state, acts safely, and reaches you through an inbox. Learn durable execution, human decisions, safe retries, and clear run boundaries.
 
 Benefits:
   - Understand how background execution differs from a chat interface and when an agent needs a durable lifecycle.
   - Build a Node.js agent harness that observes current state, validates model-selected actions, and verifies completion.
   - Use Inngest to checkpoint model calls and tool execution so runs can resume after app restarts.
-  - Suspend runs until events, timers, or human decisions arrive, then reassess the current state.
+  - Start one run per external event, distinguish event payloads from current state, and handle bursts and stale work.
   - Require approval for disruptive actions and handle rejection, expiry, and changed conditions before execution.
   - Give the agent an inbox for approvals and questions so people can respond after the original request ends.
   - Make retries safe with action idempotency, timeouts, run limits, and cancellation.
@@ -24,11 +24,11 @@ Benefits:
   - Leave with a working incident-response agent and a reference architecture you can adapt for your own background workflows.
 
 Summary: >
-  Give an agent a goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that observes a changing service, chooses a remediation, reaches you through an agent inbox when it needs approval or an answer, verifies recovery, and produces an incident report.
+  Configure an agent's standing goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that starts a run for each service event, reads the latest state, chooses a remediation, reaches you through an inbox when it needs approval or an answer, and reports what it verified.
 
-  Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of state, action validation, and completion. Then you'll use Inngest to make execution durable, pause for external events and human decisions, and recover safely from failures. You'll deliberately restart the agent, duplicate events, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
+  Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of action policy and completion. Then you'll use Inngest to make execution durable, pause for human decisions, and recover safely from failures. You'll deliberately restart the agent, send competing events, change state during a decision, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
 
-  A prebuilt local UI and event simulator keep the focus on the agent and its harness. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required. By the end of the day, you'll have a working reference architecture and a clear mental model for when background agents are useful, how they pause and resume, and how to inspect their behavior.
+  A prebuilt local UI lets you edit simulated service state and fire events without embedding scenarios in the agent. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required.
 
 Audience:
   Overview: This workshop is for developers who already have some JavaScript or TypeScript experience and want to move beyond chat-based AI demos into real agent systems. It is especially useful for full-stack engineers, backend engineers, and technical founders building automations, internal tools, or product features where work needs to continue asynchronously in the background. Prior agent experience is helpful but not required.
@@ -43,19 +43,19 @@ Audience:
     - A working LLM API key with available usage credits is required for the hands-on exercises.
 
 Agenda:
-  Overview: Start with the course architecture and branch workflow, then build an incident-response agent across six hands-on lessons. Progress from a goal-driven loop to durable execution, event-driven waiting, human approval, safe retries, and a final incident drill. Each coding lesson is followed by time for a break and catch-up, with lunch after lesson three.
+  Overview: Start with the course architecture and branch workflow, then build an incident-response agent across six hands-on lessons. Progress from a goal-driven loop to durable execution, fresh-state checks for event-triggered runs, human approval, safe retries, and a final help-and-handoff drill. Each coding lesson is followed by time for a break and catch-up, with lunch after lesson three.
   Schedule:
     - "0930": Course introduction — the architecture, local lab, and lesson branches
     - "0945": Give the agent a goal — state, actions, and the core harness
     - "1015": Break and catch-up
     - "1030": Make progress durable — checkpoint and resume with Inngest
     - "1115": Break and catch-up
-    - "1130": Wait for the world — events, timers, and fresh state
+    - "1130": Read the world — event boundaries, fresh state, and stale actions
     - "1215": Lunch Break
     - "1315": Put a human in control — approval, rejection, and expiry
     - "1400": Break and catch-up
     - "1415": Make retries safe — idempotency, run limits, and cancellation
     - "1500": Break and catch-up
-    - "1515": Run an incident drill — debug, evaluate, and verify the agent
+    - "1515": Run an incident drill — ask for help, hand off, and evaluate the agent
     - "1600": Break and catch-up
     - "1615": Wrap-up, tradeoffs, and next steps
