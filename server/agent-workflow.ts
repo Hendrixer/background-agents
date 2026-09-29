@@ -145,7 +145,7 @@ export const incidentAgent = inngest.createFunction(
         return
       }
       // An attempt-local ID is intentionally unsafe when a response is lost.
-      const actionId = randomUUID()
+      const actionId = `${runId}:${randomUUID()}`
       const policy = actionPolicy[decision.action]
       if (policy === 'approval') {
         const input = { expectedVersion: state.world.version }
