@@ -93,7 +93,11 @@ export const incidentAgent = inngest.createFunction(
         recordDecision(environmentId, runId, cycle, decision.action, decision.reason),
       )
 
-      if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
+      if (
+        decision.action === 'wait' ||
+        decision.action === 'request_help' ||
+        (decision.action === 'complete' && run.goalCondition)
+      ) {
         if (decision.action === 'complete') {
           await step.run(`reject-completion-${cycle}`, () =>
             logAgentActivity(
@@ -105,11 +109,22 @@ export const incidentAgent = inngest.createFunction(
             ),
           )
         }
+        if (decision.action === 'request_help') {
+          await step.run(`defer-help-${cycle}`, () =>
+            logAgentActivity(environmentId, runId, 'human', 'Help is not available yet', {
+              question: decision.detail,
+            }),
+          )
+        }
         await step.run(`wait-status-${cycle}`, () =>
           setRun(
             runId,
             'waiting',
-            decision.action === 'wait' ? decision.reason : 'Recovery is not verified',
+            decision.action === 'request_help'
+              ? 'Help is not available yet; waiting for fresh service evidence'
+              : decision.action === 'wait'
+                ? decision.reason
+                : 'Recovery is not verified',
           ),
         )
         let check = 0
@@ -135,12 +150,6 @@ export const incidentAgent = inngest.createFunction(
         return { report }
       }
 
-      if (decision.action === 'request_help') {
-        await step.run(`help-unavailable-${cycle}`, () =>
-          setRun(runId, 'escalated', 'Human help path is not built yet'),
-        )
-        return
-      }
       // An attempt-local ID is intentionally unsafe when a response is lost.
       const actionId = `${runId}:${randomUUID()}`
       const policy = actionPolicy[decision.action]
