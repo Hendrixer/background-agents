@@ -41,7 +41,7 @@ export const incidentAgent = inngest.createFunction(
           await setRun(runId, 'escalated', 'Approval gate is not built yet')
           return
         }
-        const actionId = randomUUID()
+        const actionId = `${runId}:${randomUUID()}`
         const response = await fetch(checkoutServiceUrl + '/operations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
