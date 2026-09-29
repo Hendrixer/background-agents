@@ -49,137 +49,200 @@ These code blocks show the exact changes between the start and solution branches
 Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes.
 
 ```diff
- import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
- import { chooseAction, writeReport } from "./agent-brain";
- import { inngest } from "./inngest";
-+import { logAgentActivity } from "./agent-log";
- import { checkoutServiceUrl } from "./observe";
-+import { actionPolicy } from "./tool-policy";
-+import type { ActionName } from "../shared/types";
+ } from './agent-data'
+ import { chooseAction, writeReport } from './agent-brain'
+ import { inngest } from './inngest'
++import { logAgentActivity } from './agent-log'
+ import { checkoutServiceUrl } from './observe'
++import { actionPolicy } from './tool-policy'
++import type { ActionName } from '../shared/types'
 +
-+async function executeAction(environmentId: string, runId: string, actionId: string, name: ActionName, expectedVersion?: number) {
-+  const input = expectedVersion === undefined ? {} : { expectedVersion };
-+  await logAgentActivity(environmentId, runId, "act", `Calling ${name.replaceAll("_", " ")}`, { actionId, input });
++async function executeAction(
++  environmentId: string,
++  runId: string,
++  actionId: string,
++  name: ActionName,
++  expectedVersion?: number,
++) {
++  const input = expectedVersion === undefined ? {} : { expectedVersion }
++  await logAgentActivity(environmentId, runId, 'act', `Calling ${name.replaceAll('_', ' ')}`, {
++    actionId,
++    input,
++  })
 +  try {
 +    const response = await fetch(`${checkoutServiceUrl}/operations`, {
-+      method: "POST", headers: { "Content-Type": "application/json" },
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
 +      body: JSON.stringify({ actionId, name, ...input }),
-+    });
-+    const result = await response.json() as Record<string, unknown>;
-+    if (!response.ok) throw new Error(String(result.error || `Tool failed: ${response.status}`));
-+    if (result.stale !== true) await recordToolAction(environmentId, runId, actionId, name, input, result);
-+    return result;
++    })
++    const result = (await response.json()) as Record<string, unknown>
++    if (!response.ok) throw new Error(String(result.error || `Tool failed: ${response.status}`))
++    if (result.stale !== true)
++      await recordToolAction(environmentId, runId, actionId, name, input, result)
++    return result
 +  } catch (error) {
-+    await logAgentActivity(environmentId, runId, "act", `${name.replaceAll("_", " ")} attempt failed`, {
-+      actionId, error: error instanceof Error ? error.message : String(error),
-+    });
-+    throw error;
++    await logAgentActivity(
++      environmentId,
++      runId,
++      'act',
++      `${name.replaceAll('_', ' ')} attempt failed`,
++      {
++        actionId,
++        error: error instanceof Error ? error.message : String(error),
++      },
++    )
++    throw error
 +  }
 +}
 
  export const incidentAgent = inngest.createFunction(
--  { id: "incident-agent", name: "Checkout incident agent", triggers: { event: "incident/opened" } },
+-  { id: 'incident-agent', name: 'Checkout incident agent', triggers: { event: 'incident/opened' } },
 +  {
-+    id: "incident-agent",
-+    name: "Checkout incident agent",
-+    triggers: { event: "incident/opened" },
++    id: 'incident-agent',
++    name: 'Checkout incident agent',
++    triggers: { event: 'incident/opened' },
 +    retries: 2,
 +    // This limits executing steps, not the number of waiting incidents.
-+    concurrency: { limit: 1, key: "event.data.environmentId" },
++    concurrency: { limit: 1, key: 'event.data.environmentId' },
 +    onFailure: async ({ error, event }) => {
-+      const original = event.data.event as { data?: { runId?: string } };
-+      if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
++      const original = event.data.event as { data?: { runId?: string } }
++      if (original.data?.runId) await setRun(original.data.runId, 'failed', error.message)
 +    },
 +  },
    async ({ event, step }) => {
--    const { environmentId, runId } = event.data;
+-    const { environmentId, runId } = event.data
 -    // One opaque checkpoint proves the loop, but hides where each effect happened.
--    return step.run("whole-agent-loop", async () => {
--      const run = await getRun(runId);
+-    return step.run('whole-agent-loop', async () => {
+-      const run = await getRun(runId)
 -      for (let cycle = 1; cycle <= 8; cycle++) {
--        const state = await agentState(environmentId, runId);
+-        const state = await agentState(environmentId, runId)
 -        if (goalSatisfied(state, run.goalCondition)) {
--          const report = await writeReport(run.goal, state);
--          await setRun(runId, "completed", null, report);
--          return { report };
+-          const report = await writeReport(run.goal, state)
+-          await setRun(runId, 'completed', null, report)
+-          return { report }
 -        }
--        const decision = await chooseAction(run.goal, state);
--        await setIteration(runId, cycle);
--        await recordDecision(environmentId, runId, cycle, decision.action, decision.reason);
--        if (decision.action === "wait" || decision.action === "complete" || decision.action === "request_help") {
--          await setRun(runId, "escalated", "This first loop cannot pause yet");
--          return;
+-        const decision = await chooseAction(run.goal, state)
+-        await setIteration(runId, cycle)
+-        await recordDecision(environmentId, runId, cycle, decision.action, decision.reason)
+-        if (
+-          decision.action === 'wait' ||
+-          decision.action === 'complete' ||
+-          decision.action === 'request_help'
+-        ) {
+-          await setRun(runId, 'escalated', 'This first loop cannot pause yet')
+-          return
 -        }
--        if (decision.action === "rollback_release") {
--          await setRun(runId, "escalated", "Approval gate is not built yet");
--          return;
+-        if (decision.action === 'rollback_release') {
+-          await setRun(runId, 'escalated', 'Approval gate is not built yet')
+-          return
 -        }
--        const actionId = randomUUID();
--        const response = await fetch(checkoutServiceUrl + "/operations", {
--          method: "POST", headers: { "Content-Type": "application/json" },
--          body: JSON.stringify({ actionId, name: decision.action, expectedVersion: state.world.version }),
--        });
--        const result = await response.json() as Record<string, unknown>;
--        if (!response.ok) throw new Error(String(result.error ?? response.status));
--        if (result.stale !== true) await recordToolAction(environmentId, runId, actionId, decision.action, { expectedVersion: state.world.version }, result);
-+    const { environmentId, runId, instanceId } = event.data;
-+    const run = await getRun(runId);
-+    if (run.instanceId !== instanceId || ["completed", "failed", "cancelled", "escalated", "superseded"].includes(run.status)) return;
+-        const actionId = randomUUID()
+-        const response = await fetch(checkoutServiceUrl + '/operations', {
+-          method: 'POST',
+-          headers: { 'Content-Type': 'application/json' },
+-          body: JSON.stringify({
+-            actionId,
+-            name: decision.action,
+-            expectedVersion: state.world.version,
+-          }),
+-        })
+-        const result = (await response.json()) as Record<string, unknown>
+-        if (!response.ok) throw new Error(String(result.error ?? response.status))
+-        if (result.stale !== true)
+-          await recordToolAction(
++    const { environmentId, runId, instanceId } = event.data
++    const run = await getRun(runId)
++    if (
++      run.instanceId !== instanceId ||
++      ['completed', 'failed', 'cancelled', 'escalated', 'superseded'].includes(run.status)
++    )
++      return
 +
 +    for (let cycle = 1; cycle <= 24; cycle++) {
-+      const current = await getRun(runId);
-+      if (["completed", "failed", "cancelled", "escalated", "superseded"].includes(current.status)) return;
-+      const state = await step.run(`observe-state-${cycle}`, () => agentState(environmentId, runId));
++      const current = await getRun(runId)
++      if (['completed', 'failed', 'cancelled', 'escalated', 'superseded'].includes(current.status))
++        return
++      const state = await step.run(`observe-state-${cycle}`, () => agentState(environmentId, runId))
 +
 +      if (goalSatisfied(state, run.goalCondition)) {
-+        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
-+        await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
-+        return { report };
-       }
--      await setRun(runId, "escalated", "Decision limit reached");
--    });
-+
-+      const decision = await step.run(`choose-action-${cycle}`, () => chooseAction(run.goal, state));
-+      await step.run(`set-iteration-${cycle}`, () => setIteration(runId, cycle));
-+      await step.run(`record-decision-${cycle}`, () => recordDecision(environmentId, runId, cycle, decision.action, decision.reason));
-+
-+      if (decision.action === "wait" || (decision.action === "complete" && run.goalCondition)) {
-+        await step.run("wait-unavailable-" + cycle, () => setRun(runId, "escalated", "Event wait is not built yet"));
-+        return;
-+      }
-+      if (decision.action === "complete") {
-+        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
-+        await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
-+        return { report };
++        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state))
++        await step.run(`complete-run-${cycle}`, () => setRun(runId, 'completed', null, report))
++        return { report }
 +      }
 +
-+      if (decision.action === "request_help") {
-+        await step.run(`help-unavailable-${cycle}`, () => setRun(runId, "escalated", "Human help path is not built yet"));
-+        return;
++      const decision = await step.run(`choose-action-${cycle}`, () => chooseAction(run.goal, state))
++      await step.run(`set-iteration-${cycle}`, () => setIteration(runId, cycle))
++      await step.run(`record-decision-${cycle}`, () =>
++        recordDecision(environmentId, runId, cycle, decision.action, decision.reason),
++      )
++
++      if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
++        await step.run('wait-unavailable-' + cycle, () =>
++          setRun(runId, 'escalated', 'Event wait is not built yet'),
++        )
++        return
++      }
++      if (decision.action === 'complete') {
++        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state))
++        await step.run(`complete-run-${cycle}`, () => setRun(runId, 'completed', null, report))
++        return { report }
++      }
++
++      if (decision.action === 'request_help') {
++        await step.run(`help-unavailable-${cycle}`, () =>
++          setRun(runId, 'escalated', 'Human help path is not built yet'),
++        )
++        return
 +      }
 +      // An attempt-local ID is intentionally unsafe when a response is lost.
-+      const actionId = randomUUID();
-+      const policy = actionPolicy[decision.action];
-+      if (policy === "approval") {
-+        await step.run("approval-unavailable-" + cycle, () => setRun(runId, "escalated", "Approval gate is not built yet"));
-+        return;
++      const actionId = randomUUID()
++      const policy = actionPolicy[decision.action]
++      if (policy === 'approval') {
++        await step.run('approval-unavailable-' + cycle, () =>
++          setRun(runId, 'escalated', 'Approval gate is not built yet'),
++        )
++        return
 +      }
 +
-+      const result = await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
++      const result = await step.run(`execute-action-${cycle}`, () =>
++        executeAction(
++          environmentId,
++          runId,
++          actionId,
++          decision.action,
++          policy === 'read' ? undefined : state.world.version,
++        ),
++      )
 +      if (result.stale === true) {
-+        await step.run(`stale-action-${cycle}`, () => logAgentActivity(environmentId, runId, "act", "Action rejected because service state changed", result));
-+        continue;
-+      }
-+      await step.run(`settle-status-${cycle}`, () => setRun(runId, "waiting", "Waiting briefly before observing the effect"));
-+      await step.sleep(`settle-${cycle}`, "1s");
++        await step.run(`stale-action-${cycle}`, () =>
++          logAgentActivity(
+             environmentId,
+             runId,
+-            actionId,
+-            decision.action,
+-            { expectedVersion: state.world.version },
++            'act',
++            'Action rejected because service state changed',
+             result,
+-          )
++          ),
++        )
++        continue
+       }
+-      await setRun(runId, 'escalated', 'Decision limit reached')
+-    })
++      await step.run(`settle-status-${cycle}`, () =>
++        setRun(runId, 'waiting', 'Waiting briefly before observing the effect'),
++      )
++      await step.sleep(`settle-${cycle}`, '1s')
 +    }
 +
-+    await step.run("stop-at-limit", () => setRun(runId, "escalated", "Decision limit reached"));
++    await step.run('stop-at-limit', () => setRun(runId, 'escalated', 'Decision limit reached'))
    },
- );
+ )
 ```
 
-Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
+Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
