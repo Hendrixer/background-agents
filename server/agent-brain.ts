@@ -23,12 +23,18 @@ function model() {
 
 function scriptedDecision(state: AgentState): Decision {
   const used = (action: ActionName) => state.actions.some((item) => item.name === action);
+  const world = state.world.state;
   if (!used("inspect_logs")) return { action: "inspect_logs", reason: "Check current failure evidence", detail: "" };
   if (!used("inspect_changes")) return { action: "inspect_changes", reason: "Check recent deployment state", detail: "" };
-  if (!state.service.upstreamHealthy) return { action: "request_help", reason: "The upstream dependency is unavailable", detail: "Can someone verify and restore the payment gateway?" };
-  if (state.service.release === "v2-bad") return { action: "rollback_release", reason: "The faulty release is active", detail: "" };
-  if (state.service.featureEnabled) return { action: "disable_feature", reason: "The enabled feature is associated with errors", detail: "" };
-  return { action: "complete", reason: "Service appears recovered", detail: "" };
+  if (world.upstreamHealthy === false) {
+    const answered = state.humanDecisions.some((item) => item.action === "request_help" && item.status === "approved");
+    return answered
+      ? { action: "defer", reason: "An operator answered; a later service event will verify any external change", detail: "" }
+      : { action: "request_help", reason: "The external dependency is unavailable", detail: "Can someone check and restore the payment gateway?" };
+  }
+  if (world.release === "v2-bad" && !used("rollback_release")) return { action: "rollback_release", reason: "The active release may be causing failures", detail: "" };
+  if (world.featureEnabled === true && !used("disable_feature")) return { action: "disable_feature", reason: "Disable the suspect feature", detail: "" };
+  return { action: "defer", reason: "No further local action is justified; wait for a new observation event", detail: "" };
 }
 
 export async function chooseAction(goal: string, state: AgentState): Promise<Decision> {
@@ -37,12 +43,14 @@ export async function chooseAction(goal: string, state: AgentState): Promise<Dec
   const result = await generateText({
     model: model(),
     output: Output.object({ schema: decisionSchema }),
-    system: `You are a background incident agent for a simulated checkout service.
+    system: `You are a background incident agent for a checkout service.
 Choose exactly one action. The harness validates it and controls execution.
-Available actions: inspect_logs, inspect_changes, disable_feature, rollback_release, request_help, complete.
+Available actions: inspect_logs, inspect_changes, disable_feature, rollback_release, request_help, complete, defer.
 Inspect evidence before changing the service. A rollback always requires human approval.
 Use request_help when an external dependency cannot be fixed by your local tools.
-Use complete only when there is fresh sustained recovery evidence.
+Use defer when no safe local action remains; a later service event will start a new run.
+The event is a trigger, not authoritative evidence. Read current state. An answered help request does not prove recovery.
+Use complete only when the configured goal is satisfied, or when no deterministic goal condition is configured and you can justify completion.
 Keep reason to one short sentence. Put a question to the operator in detail for request_help; otherwise detail may be empty.`,
     prompt: `Goal: ${goal}\n\nCurrent observed state:\n${JSON.stringify(state, null, 2)}`,
   });
@@ -51,7 +59,7 @@ Keep reason to one short sentence. Put a question to the operator in detail for 
 
 export async function writeReport(goal: string, state: AgentState): Promise<string> {
   if (process.env.AGENT_DEMO_MODE === "1") {
-    return `Goal: ${goal}\nOutcome: Checkout recovered to ${state.service.errorRate}% errors.\nActions: ${state.actions.map((item) => item.name.replaceAll("_", " ")).reverse().join(", ")}.\nVerified with three fresh healthy observations.`;
+    return `Goal: ${goal}\nObserved state: ${JSON.stringify(state.world.state)}\nActions in this run: ${state.actions.map((item) => item.name.replaceAll("_", " ")).reverse().join(", ") || "none"}.`;
   }
   const result = await generateText({
     model: model(),
