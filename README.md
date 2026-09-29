@@ -70,6 +70,8 @@ The workshop uses one checkout service, so at most one active incident is associ
 
 Each lesson starts with the prior lesson's solution. The next branch has the completed code. Read [lesson 00](lessons/index.md) first; the notes include the engineering discussion and exact edits for live coding. Branch switches change source code, not Neon or Inngest history.
 
+The repository uses Oxfmt with single quotes and no semicolons. After a lesson edit, run `npm run format`, `npm run lint`, and `npm run typecheck`. `npm run format:check` verifies the committed format without changing files.
+
 | Lesson | Start | Solution |
 | --- | --- | --- |
 | 1 · Goal and loop | `lesson-1` | `lesson-2` |

@@ -91,7 +91,7 @@ function renderLesson(lesson, number) {
   })
 
   lines.push(
-    'Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.',
+    'Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.',
     '',
     '## Verify',
     '',

@@ -35,22 +35,27 @@ These code blocks show the exact changes between the start and solution branches
 Remove the temporary help escalation.
 
 ```diff
-         return { report };
+         return { report }
        }
 
--      if (decision.action === "request_help") {
--        await step.run(`help-unavailable-${cycle}`, () => setRun(runId, "escalated", "Human help path is not built yet"));
--        return;
+-      if (decision.action === 'request_help') {
+-        await step.run(`help-unavailable-${cycle}`, () =>
+-          setRun(runId, 'escalated', 'Human help path is not built yet'),
+-        )
+-        return
 -      }
-       const actionId = `${runId}:${cycle}:${decision.action}`;
-       const policy = actionPolicy[decision.action];
--      if (policy === "approval") {
--        const input = { expectedVersion: state.world.version };
-+      if (policy === "approval" || policy === "help") {
-+        const input = policy === "help" ? { question: decision.detail } : { expectedVersion: state.world.version };
+       const actionId = `${runId}:${cycle}:${decision.action}`
+       const policy = actionPolicy[decision.action]
+-      if (policy === 'approval') {
+-        const input = { expectedVersion: state.world.version }
++      if (policy === 'approval' || policy === 'help') {
++        const input =
++          policy === 'help'
++            ? { question: decision.detail }
++            : { expectedVersion: state.world.version }
          const proposalId = await step.run(`propose-action-${cycle}`, async () => {
-           const proposal = await proposeAction(environmentId, runId, actionId, decision.action, input);
-           return proposal.id;
+           const proposal = await proposeAction(
+             environmentId,
 ```
 
 ### Edit 2 · `server/agent-workflow.ts`
@@ -58,16 +63,16 @@ Remove the temporary help escalation.
 Let help use the persisted proposal and wait, then continue with a new observation.
 
 ```diff
-           await step.run(`stop-after-human-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${proposal.status}`));
-           return;
+           )
+           return
          }
-+        if (policy === "help") continue;
-         const fresh = await step.run(`recheck-approved-state-${cycle}`, () => agentState(environmentId, runId));
-         if (fresh.world.version !== input.expectedVersion) {
-           await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
++        if (policy === 'help') continue
+         const fresh = await step.run(`recheck-approved-state-${cycle}`, () =>
+           agentState(environmentId, runId),
+         )
 ```
 
-Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
+Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
