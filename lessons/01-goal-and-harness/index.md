@@ -83,7 +83,7 @@ Replace the placeholder function. The alert intake and checkout API are supplied
 +          await setRun(runId, 'escalated', 'Approval gate is not built yet')
 +          return
 +        }
-+        const actionId = randomUUID()
++        const actionId = `${runId}:${randomUUID()}`
 +        const response = await fetch(checkoutServiceUrl + '/operations', {
 +          method: 'POST',
 +          headers: { 'Content-Type': 'application/json' },
@@ -115,7 +115,7 @@ Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. T
 
 ## Verify
 
-Restart checkout with `--fault feature`. The run should inspect logs and changes, disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.
+Restart checkout with `--fault feature`. The model may inspect logs, changes, or both; the run should disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.
 
 ## Break it on purpose
 
