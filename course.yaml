@@ -15,20 +15,20 @@ Benefits:
   - Understand how background execution differs from a chat interface and when an agent needs a durable lifecycle.
   - Build a Node.js agent harness that observes current state, validates model-selected actions, and verifies completion.
   - Use Inngest to checkpoint model calls and tool execution so runs can resume after app restarts.
-  - Start one run per external event, distinguish event payloads from current state, and handle bursts and stale work.
+  - Open one run per active incident, join later alerts to it, and distinguish event payloads from current state.
   - Require approval for disruptive actions and handle rejection, expiry, and changed conditions before execution.
   - Give the agent an inbox for approvals and questions so people can respond after the original request ends.
   - Make retries safe with action idempotency, timeouts, run limits, and cancellation.
-  - Use a local event simulator and Inngest traces to reproduce failures and explain what a run did.
+  - Use a separate local checkout service and Inngest traces to reproduce failures and explain what a run did.
   - Evaluate outcomes, action trajectories, and authority boundaries instead of judging an agent only by its final report.
   - Leave with a working incident-response agent and a reference architecture you can adapt for your own background workflows.
 
 Summary: >
-  Configure an agent's standing goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that starts a run for each service event, reads the latest state, chooses a remediation, reaches you through an inbox when it needs approval or an answer, and reports what it verified.
+  Configure an agent's standing goal, close the tab, and return when it needs you. In this hands-on workshop, you'll build an incident-response agent that opens a durable run for an active service incident, joins later alerts to that run, reads the latest state, chooses a remediation, reaches you through an inbox when it needs approval or an answer, and reports what it verified.
 
   Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of action policy and completion. Then you'll use Inngest to make execution durable, pause for human decisions, and recover safely from failures. You'll deliberately restart the agent, send competing events, change state during a decision, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
 
-  A prebuilt local UI lets you edit simulated service state and fire events without embedding scenarios in the agent. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required.
+  A separate local checkout service starts with a selected fault, changes state when tools act, and emits alerts. The supplied operator UI shows an inbox, incident history, and service events. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required.
 
 Audience:
   Overview: This workshop is for developers who already have some JavaScript or TypeScript experience and want to move beyond chat-based AI demos into real agent systems. It is especially useful for full-stack engineers, backend engineers, and technical founders building automations, internal tools, or product features where work needs to continue asynchronously in the background. Prior agent experience is helpful but not required.
@@ -43,14 +43,14 @@ Audience:
     - A working LLM API key with available usage credits is required for the hands-on exercises.
 
 Agenda:
-  Overview: Start with the course architecture and branch workflow, then build an incident-response agent across six hands-on lessons. Progress from a goal-driven loop to durable execution, fresh-state checks for event-triggered runs, human approval, safe retries, and a final help-and-handoff drill. Each coding lesson is followed by time for a break and catch-up, with lunch after lesson three.
+  Overview: Start with the course architecture and branch workflow, then build an incident-response agent across six hands-on lessons. Progress from a goal-driven loop to durable execution, event waits and fresh observation, human approval, safe retries, and a final help-and-handoff drill. Each coding lesson is followed by time for a break and catch-up, with lunch after lesson three.
   Schedule:
     - "0930": Course introduction — the architecture, local lab, and lesson branches
     - "0945": Give the agent a goal — state, actions, and the core harness
     - "1015": Break and catch-up
     - "1030": Make progress durable — checkpoint and resume with Inngest
     - "1115": Break and catch-up
-    - "1130": Read the world — event boundaries, fresh state, and stale actions
+    - "1130": Wait for the world — incident events, durable wakeups, and fresh state
     - "1215": Lunch Break
     - "1315": Put a human in control — approval, rejection, and expiry
     - "1400": Break and catch-up

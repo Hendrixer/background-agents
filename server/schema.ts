@@ -47,6 +47,8 @@ export const observations = pgTable("observations", {
 export const events = pgTable("events", {
   id: uuid("id").primaryKey(),
   environmentId: uuid("lab_id").notNull().references(() => environments.id),
+  runId: uuid("run_id").references(() => runs.id),
+  instanceId: text("instance_id"),
   type: text("type").notNull(),
   data: jsonb("data").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -65,6 +67,8 @@ export const runs = pgTable("runs", {
   id: uuid("id").primaryKey(),
   environmentId: uuid("lab_id").notNull().references(() => environments.id),
   eventId: uuid("event_id"),
+  instanceId: text("instance_id"),
+  eventSequence: integer("event_sequence").notNull().default(0),
   goal: text("goal").notNull(),
   goalCondition: jsonb("goal_condition").$type<GoalCondition>(),
   status: text("status").notNull(),

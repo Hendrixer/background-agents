@@ -27,14 +27,14 @@ function scriptedDecision(state: AgentState): Decision {
   if (!used("inspect_logs")) return { action: "inspect_logs", reason: "Check current failure evidence", detail: "" };
   if (!used("inspect_changes")) return { action: "inspect_changes", reason: "Check recent deployment state", detail: "" };
   if (world.upstreamHealthy === false) {
-    const answered = state.humanDecisions.some((item) => item.action === "request_help" && item.status === "approved");
+    const answered = state.humanDecisions.some((item) => item.action === "request_help");
     return answered
-      ? { action: "defer", reason: "An operator answered; a later service event will verify any external change", detail: "" }
+      ? { action: "wait", reason: "The dependency is still unavailable; wait for a fresh service event", detail: "" }
       : { action: "request_help", reason: "The external dependency is unavailable", detail: "Can someone check and restore the payment gateway?" };
   }
-  if (world.release === "v2-bad" && !used("rollback_release")) return { action: "rollback_release", reason: "The active release may be causing failures", detail: "" };
+  if (world.release === "v2-bad" && !used("rollback_release") && !state.humanDecisions.some((item) => item.action === "rollback_release" && item.status !== "approved")) return { action: "rollback_release", reason: "The active release may be causing failures", detail: "" };
   if (world.featureEnabled === true && !used("disable_feature")) return { action: "disable_feature", reason: "Disable the suspect feature", detail: "" };
-  return { action: "defer", reason: "No further local action is justified; wait for a new observation event", detail: "" };
+  return { action: "wait", reason: "No further local action is justified; wait for new service evidence", detail: "" };
 }
 
 export async function chooseAction(goal: string, state: AgentState): Promise<Decision> {
@@ -45,11 +45,12 @@ export async function chooseAction(goal: string, state: AgentState): Promise<Dec
     output: Output.object({ schema: decisionSchema }),
     system: `You are a background incident agent for a checkout service.
 Choose exactly one action. The harness validates it and controls execution.
-Available actions: inspect_logs, inspect_changes, disable_feature, rollback_release, request_help, complete, defer.
-Inspect evidence before changing the service. A rollback always requires human approval.
+Available actions: inspect_logs, inspect_changes, disable_feature, rollback_release, request_help, complete, wait.
+The current service state and recent incident history have already been observed. Inspect detailed logs or changes when needed before changing the service.
+Choose the service action you think is justified; the harness applies its own policy before execution.
 Use request_help when an external dependency cannot be fixed by your local tools.
-Use defer when no safe local action remains; a later service event will start a new run.
-The event is a trigger, not authoritative evidence. Read current state. An answered help request does not prove recovery.
+Use wait when no safe local action remains; a later service event can wake this same incident run.
+An alert is a trigger, not authoritative evidence. An answered help request does not prove recovery.
 Use complete only when the configured goal is satisfied, or when no deterministic goal condition is configured and you can justify completion.
 Keep reason to one short sentence. Put a question to the operator in detail for request_help; otherwise detail may be empty.`,
     prompt: `Goal: ${goal}\n\nCurrent observed state:\n${JSON.stringify(state, null, 2)}`,

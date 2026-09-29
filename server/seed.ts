@@ -1,5 +1,5 @@
 import { client } from "./db";
-import { ensureEnvironment } from "./lab-data";
+import { ensureEnvironment } from "./environment";
 
 const environment = await ensureEnvironment();
 console.log(`Environment ready: ${environment.id}`);
