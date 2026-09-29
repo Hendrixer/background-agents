@@ -5,114 +5,92 @@
       "title": "Give the agent a goal",
       "start": "lesson-1",
       "solution": "lesson-2",
-      "promise": "A goal becomes a sequence of observed state, model-selected action, harness validation, and tool execution.",
-      "opening": "On `/admin`, create **Feature rollout**, start one agent run, then send a batch of 12 health events one second apart. Checkout is degraded before the run exists. The changing service is the environment our agent must observe; the browser is only a way to start and inspect the work.",
-      "edit": "Replace the placeholder handler inside `incidentAgent`. The imports and `executeAction` helper above it already exist and stay. Read the `-` lines as removals and the `+` lines as code to type.",
-      "verify": "Start an agent from `/admin` with the supplied goal. Watch which action your model selects in `/activity`; in instructor demo mode it inspects logs and changes before disabling the feature. Once a healthy observation arrives, the run completes. Open the Inngest trace: the entire loop is one `whole-agent-loop` step.",
-      "experiment": "On a fresh lab instance, stop the agent process while that single step is running, then restart it. Which model calls or tools could run again? The loop has no internal checkpoints, so a retry can replay earlier work.",
-      "mistakes": "If it ends at the decision limit, send another health-event batch. If the model key is missing, set `OPENAI_API_KEY` and `OPENAI_MODEL` in `.env` and restart only the agent process.",
-      "extension": "Change the goal to request a different final report and inspect which parts of the harness still stay deterministic.",
-      "challenge": "Draw a four-column authority map for **model**, **harness**, **service state**, and **human**. Place each decision in one column: choose an inspection, permit a tool, decide that recovery is real, and authorize a rollback. Now give the agent a goal that forbids disabling the feature. Our schema still allows `disable_feature`; explain why a sentence in the goal is not an authorization rule. Specify the smallest harness check you would add and what you would measure to know it helped."
+      "promise": "One external event starts one bounded observe–decide–act run against a standing goal.",
+      "opening": "On /admin, save a degraded state but do not send an event. Activity stays unchanged. Send one health event: the placeholder run appears. The agent's event handler has created the run and copied the standing goal. Our job is to give that run a harness.",
+      "edit": "In server/agent-workflow.ts, replace only the placeholder handler. The event trigger, tool-call helper, and database functions are supplied. This first loop is deliberately one opaque step; lesson 2 will expose its internal checkpoints.",
+      "verify": "Use the Feature rollout shortcut, save state, then send one event. The run should inspect evidence, disable the feature, and end deferred because the saved health is still degraded. Save the Recovered state and send another event: a second run should complete. Confirm the first run did not resume.",
+      "experiment": "Save a different state without emitting an event. Explain why no new run appears. Then emit two events rapidly and compare run IDs, goals, and observed state versions. The events start separate runs even if both read the same latest state.",
+      "mistakes": "The event payload is not the world state. The loop must call agentState each cycle. A tool changing the release or feature flag does not by itself prove that service health recovered.",
+      "extension": "Add a read-only inspection action to the tool catalog. State what it should return and what it must never mutate.",
+      "challenge": "Draw the authority boundaries for event delivery, standing goal configuration, current world state, model choice, tool policy, and completion. Which of these should be snapshotted into a run, and which should be read fresh? Explain what happens if the goal changes after an event is sent."
     },
     {
       "slug": "02-durable-execution",
       "title": "Make progress durable",
       "start": "lesson-2",
       "solution": "lesson-3",
-      "promise": "Each costly or effectful operation becomes a named Inngest step whose result survives a process restart.",
-      "opening": "Open the `whole-agent-loop` trace from lesson 1, then reset **Feature rollout** on `/admin`. The service may have changed during the step, but the trace contains one result for the entire loop. We will make each expensive decision and external effect visible as its own checkpoint.",
-      "edit": "In `server/agent-workflow.ts`, replace the single opaque `step.run(\"whole-agent-loop\")` with the shown loop. The helper and function options remain. This is one larger refactor; typecheck after the whole block is in place.",
-      "verify": "Start the Feature rollout run from `/admin`, send 12 health events one second apart, and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.",
-      "experiment": "If you started everything with `npm run dev`, stop that combined command first and restart `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. While a run sleeps, restart only the agent terminal. Identify which step outputs came from history and which callback actually ran. Keep the local Inngest Dev Server running throughout this experiment.",
-      "mistakes": "Do not restart the Inngest Dev Server for this demo. If “duplicate step ID” appears, check that the ID contains `cycle`; repeated static IDs inside a loop are ambiguous.",
-      "extension": "Add one more read-only inspection action and decide whether its result belongs inside its own step.",
-      "challenge": "Make a crash-window table for three points: after the model chooses an action, after the operations API commits but before it replies, and after Inngest records the step result. For each point, state what replay knows, what it may repeat, and which system has the authority to deduplicate the effect. Then imagine deploying a changed `choose-action-*` step while a run waits. Would you reuse the step ID or deliberately change it, and why?"
+      "promise": "Model choices, observations, effects, and reports become named Inngest checkpoints.",
+      "opening": "Run a degraded Feature rollout event and inspect the one whole-agent-loop trace. It hides the distinction between a model choice and a committed tool effect. We will split those operations into named steps and replace the in-process timer with a durable sleep.",
+      "edit": "In server/agent-workflow.ts, add the concurrency comment, then replace the whole handler after the run is loaded. Keep each repeated step ID tied to its cycle number. Make the replacement as one edit, then typecheck.",
+      "verify": "Send a Feature rollout event. Inngest should show observe-state, choose-action, execute-action, and settle steps rather than one opaque loop. Restart only dev:agent during a two-second settle sleep and confirm the run resumes without repeating completed step callbacks.",
+      "experiment": "Contrast a successful step result with the database's latest state. What did the run observe then, and what is true now? Deliberately stop the agent endpoint during sleep while keeping Inngest and the simulator running.",
+      "mistakes": "Do not restart the Inngest Dev Server for this local durability demo; its history is in memory. Reused static step IDs inside a loop make replay ambiguous.",
+      "extension": "Choose one step whose result need not be checkpointed and justify removing it.",
+      "challenge": "Build a crash-window table for before the model choice is saved, after a tool commits but before its response arrives, and after the step result is saved. For each window, say what replay knows and what might repeat. Explain why durable execution alone cannot guarantee exactly one external effect."
     },
     {
       "slug": "03-events-and-waiting",
-      "title": "Wait for the world",
+      "title": "Read the world after an event",
       "start": "lesson-3",
       "solution": "lesson-4",
-      "promise": "The run pauses on correlated events, wakes up, reloads state, and completes only after sustained fresh recovery.",
-      "opening": "On `/admin`, create **Feature rollout** and start an agent without sending events. The run currently polls every two seconds. Watch how often it wakes when nothing in the service has changed; then send one health event and compare `/events` with the run activity on `/activity`.",
-      "edit": "First add `hasRecovered` in `server/agent-data.ts`, then change the completion check and each poll in `server/agent-workflow.ts`. Keep the surrounding status updates.",
-      "verify": "Start the run from `/admin` without sending events. `/activity` should show `waiting`. Send one health event: the run wakes but must not complete. Then send 12 health events one second apart; after remediation and a fresh healthy streak spanning at least 1.5 seconds, it completes and writes a report. A faster interval needs more than three samples to span that window.",
-      "experiment": "Let the first batch finish while the run is waiting. Wait longer than one ten-second timeout and inspect the trace: the function reconciles, then waits again without adding a new model decision. Send another batch and watch it resume.",
-      "mistakes": "If the run never wakes, check that the event has the same `labId` and that the Inngest Dev Server is still running. A deployment or log event wakes the run but does not count as a healthy observation.",
-      "extension": "Change the recovery predicate to require a longer window and discuss how demo time and production signal quality trade off.",
-      "challenge": "Change `hasRecovered` to require five fresh healthy observations instead of three and rerun the feature incident. Measure the extra time to completion. What failure does the longer window catch, and what real outage would it delay? Restore the course version afterward. Design a second signal you would require in a real checkout service, and decide whether a late `lab/observation` is evidence or merely a reason to read state again."
+      "promise": "A run carries the version it observed into a mutating tool, which rejects stale actions.",
+      "opening": "Save a degraded state and emit two events quickly. Each event has its own run, and the two runs may inspect the same environment. Now change the state while an agent is deciding. An event ID tells us why a run started; it does not guarantee the state the run saw is still current when it acts.",
+      "edit": "First pass the observed version through executeAction in server/agent-workflow.ts and handle a stale result as a deferred run. Then add the locked version check at the start of applyAction in server/lab-data.ts. The simulator owns the tool effect, but the precondition is part of the agent's action contract.",
+      "verify": "Send a Feature rollout event and confirm normal read-only inspections still work. Then call the operations API with an old expectedVersion for disable_feature; it should return stale and leave the saved state unchanged. A fresh event starts a new run that reads the current version.",
+      "experiment": "Save a state, record its version, save another state, and attempt the write using the old version. Discuss why a harness-only recheck would still have a race before the operation commits.",
+      "mistakes": "Inngest concurrency limits executing steps, not the number of runs waiting or queued. The version check must live with the effect, under the same database lock. Do not treat event payload data as a snapshot of the current world.",
+      "extension": "What should happen if only a harmless field changes between observation and action? Propose a narrower precondition without silently widening approval scope.",
+      "challenge": "Design a burst policy for ten events in one second. Compare one run per event, deduplication, and coalescing. What evidence or work could each policy lose? Then specify an idempotency or compare-and-swap rule that prevents two runs from applying contradictory changes."
     },
     {
       "slug": "04-human-approval",
       "title": "Put a human in control",
       "start": "lesson-4",
       "solution": "lesson-5",
-      "promise": "A model can propose a rollback, but only an explicit human decision can authorize it.",
-      "opening": "On `/admin`, create **Faulty release**, start an agent, and send 12 health events one second apart. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in `/activity` before we add the inbox gate.",
-      "edit": "In `server/agent-workflow.ts`, add the imports and the rollback gate immediately after `actionId` is computed. The final `execute-action` call must remain below the gate.",
-      "verify": "Start an agent from `/admin` on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the inbox on `/`. Send a new health-event batch if the earlier one ended; the rollback should happen once and the run should verify recovery. Reset and repeat with Deny to see `escalated`.",
-      "experiment": "Leave a proposal pending while the agent process is down, approve, then restart it. The decision is in PostgreSQL and the wait reconciles even if the notification arrived before the endpoint was ready. For an expiry rehearsal, temporarily shorten the proposal expiry in `server/agent-data.ts` and reset afterward.",
-      "mistakes": "Do not approve a proposal from an older lab reset. The inbox shows requests for the current lab; reset creates a new lab ID. If approval seems stuck, inspect the `wait-for-approval-*` trace and the saved proposal status.",
-      "extension": "Add a second gated action and decide whether it should require the same approval shape or a different one.",
-      "challenge": "Treat an approval as a capability with a scope and lifetime. Write down its subject, action, expected release, expiry, and evidence. Our code rechecks the release before rollback; identify one more precondition you would revalidate at execution time and one case where you would require a new approval. Then propose an inbox item that lets a busy engineer make the decision without reading the full trace. Test rejection and explain why an unanswered request must be a visible run state rather than a hung function."
+      "promise": "A disruptive action becomes a persisted request that pauses and resumes the same run.",
+      "opening": "Load the Faulty release shortcut, save its state, and emit a deployment event. On this branch the rollback is not yet gated. We will move the authority boundary: the model may propose rollback, but a person must authorize the exact action against the observed state version.",
+      "edit": "In server/agent-workflow.ts, import the supplied proposal helpers and insert the approval gate after actionId and policy are computed. Keep the execute-action step below the gate so an unapproved rollback cannot reach it.",
+      "verify": "With Faulty release, emit one event. The run should pause in needs approval without changing the release. Approve from the inbox; the same run resumes and rolls back. It then defers until the simulator saves healthy state and emits a new event. Repeat with Deny to see escalation.",
+      "experiment": "Stop only dev:agent while a proposal is pending, answer in the inbox, and restart it. Then repeat but change the state version before approving. The original approval must become stale rather than authorizing an action against new state.",
+      "mistakes": "A human reply resumes the existing run; a service event starts another run. The approval is scoped to one proposed action and one observed version, not a standing permission.",
+      "extension": "Add a second action that needs approval, and state what evidence its inbox item should include.",
+      "challenge": "Treat approval as a capability. Define subject, action, expected state, expiry, and audit record. What should happen if the request expires while the operator is away? Design an inbox item that lets someone decide without reading the full trace."
     },
     {
       "slug": "05-safe-retries",
       "title": "Make retries safe",
       "start": "lesson-5",
       "solution": "lesson-6",
-      "promise": "A tool response can disappear after its effect commits; the same action ID must return the prior result instead of repeating the effect.",
-      "opening": "On `/admin`, create **Feature rollout**, arm **Lose the next tool response**, start an agent, and send 12 health events one second apart. The first tool call commits but returns 503. Keep `/activity` and `/events` open: the state of the world and the response seen by the agent are now different.",
-      "edit": "Make the two focused edits in `server/agent-workflow.ts`, then the two edits inside `applyAction` in `server/lab-data.ts`. The rest of the simulator code is supplied. The ID already passed from the workflow is `runId:iteration:action`.",
-      "verify": "Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the `/activity` log and `actions` table, the matching committed action ID appears once, though attempts can appear more than once. Use **Cancel run** on `/activity` while a workflow waits and confirm it stops.",
-      "experiment": "Before adding the `applyAction` edits, the retry inserts a second action row because the server makes a new UUID. After the edits, the first response can still be lost, but the second request returns the saved result. Reset the scenario between the two runs.",
-      "mistakes": "Idempotency must live where the effect happens. A client-side “already called” flag disappears on restart. Keep the same `actionId` across retries; a new UUID for each attempt defeats the table constraint.",
-      "extension": "Consider how you would carry this key through a third-party API that supports an idempotency header.",
-      "challenge": "First, reuse one action ID with a different action or input. What result does this lab return, and what conflict check would a production API need? Then imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop."
+      "promise": "A lost tool response can be retried with the same action ID without repeating the effect.",
+      "opening": "Load Feature rollout, save state, arm the lost-response fault, and emit one event. The first operation commits but replies 503. The model cannot infer whether the effect happened. We will make the effect-owning service return the saved result for the same action ID.",
+      "edit": "Add the two cancellation checks in server/agent-workflow.ts. In server/lab-data.ts, first return a prior result for the same action ID, then make the insert use that ID and handle a concurrent duplicate. Keep the state change and action ledger in one database transaction.",
+      "verify": "Arm the fault and emit one Feature rollout event. Activity should show an attempt failure and a later successful response. The matching action ID appears once in the actions table. Cancel a waiting run from Activity and confirm future steps stop, while prior effects remain visible.",
+      "experiment": "Compare the action ledger on lesson-5 and lesson-6 after the lost-response drill. Before the edit, retries create multiple rows with different server IDs. After it, one stable caller ID owns the result.",
+      "mistakes": "The stable ID must identify one intent, not one HTTP attempt. A client-side flag disappears on restart. Reusing a key with a different action or input must be rejected.",
+      "extension": "Map the action ID to a third-party API's idempotency key, then explain what to do when the provider has no such facility.",
+      "challenge": "Design a persisted unknown outcome for an external tool that times out after a possible commit. What reconciliation query would you run before retrying? What can cancellation prevent, and which completed effects require compensation?"
     },
     {
       "slug": "06-incident-drill",
-      "title": "Run an incident drill",
+      "title": "Ask for help and hand off",
       "start": "lesson-6",
       "solution": "complete",
-      "promise": "The agent asks for help when its tools cannot fix an external dependency, then waits for a recovery signal and reports the outcome.",
-      "opening": "On `/admin`, create **Upstream outage**, start an agent, and send a mixed batch of 15 events one second apart: 60% health, 20% log, 20% dependency. The local controls cannot repair the payment gateway. Follow the run through the inbox on `/`, then leave the dependency unavailable after answering so you can see the difference between receiving information and reaching the goal.",
-      "edit": "In `server/agent-workflow.ts`, add the external-wait branch before `chooseAction`, then let `request_help` share the persisted proposal path. The rollback recheck still applies only to rollback.",
-      "verify": "Start the Upstream outage run from `/admin`. Answer the agent in the inbox on `/`, then click **Simulate upstream recovery** on `/admin` and send a new batch of health events one second apart. It should wait until fresh healthy observations arrive, complete, and produce an incident report. Read the Inngest trace and `/activity` aloud to reconstruct the run.",
-      "experiment": "Answer the help request but do not recover the dependency. The run should remain waiting through multiple timeouts. Then recover it; no second help proposal or local rollback should be needed. Reset and try `Cannot help` to see escalation.",
-      "mistakes": "If the model keeps asking for help, confirm the saved human decision is `approved` and inspect `agentState.humanDecisions`. If the service is healthy but completion has not happened, send enough spaced health events for the recovery window.",
-      "extension": "Propose one different terminal policy, such as an explicit unresolved report after a configured deadline. Identify which part belongs to the model versus the harness.",
-      "challenge": "Build an evaluation card for each incident: the required final service state, forbidden actions, allowed human requests, maximum model decisions, and a check on the final report. Run at least one trial per scenario with your model; reset the lab between trials. Compare the **outcome** with the **trajectory**: a correct report with an unsafe action is a failure, and a safe escalation can be correct even without recovery. Choose one failure you observed and propose a change to the harness, tool contract, or context—not merely a stronger prompt."
+      "promise": "The agent can ask a person a question, resume that run with the answer, and defer until a later event reports external recovery.",
+      "opening": "Load Dependency outage, save state, and emit one dependency event. On this branch the agent escalates because it has no help path. We will turn request_help into an inbox question and a durable human wait. An answer gives context to this run; it does not certify recovery.",
+      "edit": "In server/agent-workflow.ts, remove the temporary request_help escalation, let help share the persisted proposal and wait path, and continue the loop after an approved answer. Skip the rollback-specific state recheck for a help answer.",
+      "verify": "Send one Dependency outage event. Answer the request in the inbox. The same run resumes, sees that the dependency is still down, and ends deferred. Load Recovered, save state, and send a new health event; a second run should complete and report the observed state.",
+      "experiment": "Answer help but leave state degraded. Confirm the answer did not make the first run complete. Then change state without an event; no new run appears. Send the event and inspect both run histories side by side.",
+      "mistakes": "Do not wait for a service event inside the old run; under this architecture it starts a new run. A help answer resumes the old run, but external recovery is a later observation for a separate run.",
+      "extension": "Add an explicit unresolved report to deferred runs so an operator can see what remains to be done.",
+      "challenge": "Write an evaluation card for each preset: target world state, forbidden actions, allowed human requests, maximum decisions, and acceptable terminal states. Run normal, approval, stale-state, and lost-response trials. Score the outcome and the trajectory separately; identify one failure that requires a policy or tool-contract change rather than a stronger prompt."
     }
   ],
   "editCues": {
-    "1": [
-      "Replace the placeholder handler inside `incidentAgent`. Follow the loop in order: verify the lab, observe state, check completion, ask the model for one action, record it, execute it, and repeat. The imports and `executeAction` helper above already exist."
-    ],
-    "2": [
-      "Lift the loop out of `whole-agent-loop` so Inngest can checkpoint its meaningful operations separately. Notice the unique `${cycle}` suffix on every repeated step ID. Replace this handler as one edit, then typecheck."
-    ],
-    "3": [
-      "Add `hasRecovered` after the `AgentState` type. This is our deterministic definition of “done”; the model does not get to relax it.",
-      "Import the new predicate into the workflow before using it.",
-      "Replace the one-sample success condition with `hasRecovered(state)`. The report runs only after that check passes.",
-      "When we have no observation or are waiting on enough healthy samples, suspend on a lab-correlated event instead of polling.",
-      "Use the same event-driven wait after an early `complete` proposal and after an operation. The next loop reads current state again."
-    ],
-    "4": [
-      "Import the supplied proposal storage helpers. They persist the exact request and human decision in PostgreSQL.",
-      "Insert the rollback gate after `actionId` is computed and before `execute-action`. Read the proposal after every wakeup, handle rejection or expiry, and recheck the release before executing."
-    ],
-    "5": [
-      "Register a cancellation event that must match this run ID. Inngest can stop a sleeping run at a step boundary.",
-      "Read the persisted run status before the next cycle does work. This makes the application state agree with cancellation.",
-      "At the start of `applyAction`, return a saved result when the same action ID has already committed.",
-      "Store the caller-provided action ID instead of a fresh UUID. If another request wins the insert, read and return its result without applying the effect again."
-    ],
-    "6": [
-      "After an answered help request, wait for the external dependency to change. Re-read state on the next cycle rather than spending another model decision.",
-      "Route `request_help` into the persisted human proposal path. The question comes from the model decision; rollback carries an expected release.",
-      "An approved help answer is not a rollback. Continue the loop without running the rollback-specific recheck or executing a local tool."
-    ]
+    "1": ["Replace the placeholder handler. The surrounding function options and executeAction helper stay in place."],
+    "2": ["Keep the concurrency setting; this comment makes its step-level scope explicit.", "Replace the opaque whole-agent-loop block with named steps. A unique cycle suffix prevents step-ID collisions."],
+    "3": ["Import tool policy, carry expectedVersion into write calls, and leave read-only calls without a precondition.", "When the effect owner reports stale state, end this run as deferred instead of acting on old evidence.", "Lock the environment row and compare the saved version before a mutating effect."],
+    "4": ["Import the supplied proposal and decision helpers.", "Insert the approval gate between the action choice and the execute-action step. A human reply resumes this run."],
+    "5": ["Register a cancellation event scoped to this run ID.", "Check persisted cancellation before another cycle starts.", "Return the previously committed result for the same action ID, and reject a mismatched reuse.", "Insert the caller's action ID atomically with the effect; a concurrent duplicate reads the winner's result."],
+    "6": ["Remove the temporary escalation and let request_help reach the proposal path.", "After an approved help answer, continue with fresh observation. Only a later service event creates a new run after this one defers."]
   }
 }
