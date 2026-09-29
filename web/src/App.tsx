@@ -155,7 +155,7 @@ export default function App() {
   }
   async function emitEvent() {
     if (!data) return;
-    try { await act("/api/events/emit", { environmentId: data.environment.id, type: eventType.trim(), data: parseObject(eventText, "Event payload") }, "Event sent. A new agent run was created."); }
+    try { await act("/api/events/emit", { environmentId: data.environment.id, type: eventType.trim(), data: parseObject(eventText, "Event payload") }, "Event sent. The agent will create a new run."); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid JSON"); }
   }
   function usePreset(preset: typeof PRESETS[number]) {
