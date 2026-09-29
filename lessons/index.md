@@ -73,7 +73,7 @@ Each lesson starts on a branch with the prior lesson's finished code. The next b
 | 3 · Wait for events | `lesson-3` | `lesson-4` |
 | 4 · Human approval | `lesson-4` | `lesson-5` |
 | 5 · Safe retries | `lesson-5` | `lesson-6` |
-| 6 · Help and handoff | `lesson-6` | `complete` |
+| 6 · Help and handoff | `lesson-6` | `main` |
 
 If you fall behind, save your work before switching: `git stash push -u -m "workshop progress"`, then `git switch lesson-3`, for example. A branch switch changes code, not Neon data or Inngest history. Start a fresh checkout instance for each drill. We will leave at least 15 minutes after each coding lesson for catch-up and questions.
 
