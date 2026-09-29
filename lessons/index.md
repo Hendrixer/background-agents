@@ -86,6 +86,8 @@ If you fall behind, save your work before switching: `git stash push -u -m "work
 
 These notes are for you and for me while I live code. Each lesson develops the engineering idea and tradeoffs, then shows exact code blocks and nearby context for the edit. A diff uses red `-` lines for removals and green `+` lines for additions. Model choices may vary; judge the state, policy, and trace instead of expecting an identical transcript.
 
+The final lesson continues into a [capstone incident lab](/advanced-lab/). Its code edit is short on purpose: you will spend the remaining time testing approval, retries, help, and recovery as one system.
+
 Before the first lesson, consider this: if checkout changes state while the agent is paused, what wakes the run? If an action commits but its HTTP response disappears, who can prove whether retrying is safe? We will return to those questions throughout the day.
 
 [Next: Give the agent a goal →](/01-goal-and-harness/)

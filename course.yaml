@@ -28,7 +28,7 @@ Summary: >
 
   Starting with a small agent loop in Node.js and TypeScript, you'll put the harness in charge of action policy and completion. Then you'll use Inngest to make execution durable, pause for human decisions, and recover safely from failures. You'll deliberately restart the agent, send competing events, change state during a decision, and lose tool responses to see what durable execution handles and where application-level safeguards are still needed.
 
-  A separate local checkout service starts with a selected fault, changes state when tools act, and emits alerts. The supplied operator UI shows an inbox, incident history, and service events. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. An advanced incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required.
+  A separate local checkout service starts with a selected fault, changes state when tools act, and emits alerts. The supplied operator UI shows an inbox, incident history, and service events. Each lesson includes engineering discussion, live coding, Markdown notes with the exact code changes, and a catch-up break. A capstone incident lab challenges you to evaluate outcomes, unsafe trajectories, and uncertain side effects. The app runs locally with your LLM API key and a free temporary Neon Postgres database; no deployment or local database installation is required.
 
 Audience:
   Overview: This workshop is for developers who already have some JavaScript or TypeScript experience and want to move beyond chat-based AI demos into real agent systems. It is especially useful for full-stack engineers, backend engineers, and technical founders building automations, internal tools, or product features where work needs to continue asynchronously in the background. Prior agent experience is helpful but not required.
@@ -56,6 +56,6 @@ Agenda:
     - "1400": Break and catch-up
     - "1415": Make retries safe — idempotency, run limits, and cancellation
     - "1500": Break and catch-up
-    - "1515": Run an incident drill — ask for help, hand off, and evaluate the agent
+    - "1515": Capstone incident drill — ask for help, hand off, and evaluate the agent
     - "1600": Break and catch-up
     - "1615": Wrap-up, tradeoffs, and next steps

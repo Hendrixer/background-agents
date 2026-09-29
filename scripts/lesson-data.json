@@ -8,7 +8,7 @@
       "promise": "A checkout alert opens an incident, and a bounded harness observes, chooses, acts, and verifies the goal.",
       "opening": "Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: an event is present, and the run lacks a useful trajectory.",
       "edit": "Replace the placeholder function in `server/agent-workflow.ts` with the first observe–decide–act loop. The checkout API, event intake, database access, model choice, and operator UI are supplied. This first version deliberately puts the whole loop inside one Inngest step.",
-      "verify": "Restart checkout with `--fault feature`. The run should inspect logs and changes, disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.",
+      "verify": "Restart checkout with `--fault feature`. The model may inspect logs, changes, or both; the run should disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.",
       "experiment": "Compare the alert payload with the body returned by the checkout `/state` endpoint. Why should the agent read the latter? Restart checkout healthy and confirm that `service.started` does not open an incident.",
       "mistakes": "The event is a doorbell, not the world state. Do not let the model decide whether it needs an approval; the harness owns that boundary.",
       "extension": "Write one extra read-only investigation tool and identify which process owns its result.",
@@ -22,7 +22,7 @@
       "promise": "Each observation, model decision, tool effect, and report becomes a named durable step.",
       "opening": "Open Inngest traces for a feature incident. The whole loop is one opaque step; a failure near the end can replay model calls and tool attempts. We will expose the important checkpoints and a durable settle timer.",
       "edit": "Replace the opaque `whole-agent-loop` handler in `server/agent-workflow.ts` with named Inngest steps. Keep each repeated step ID tied to its cycle number. The action ID is still attempt-local; lesson 5 will show why that is insufficient for external effects.",
-      "verify": "Start checkout with `--fault feature`. Inngest should show observation, choice, action, and sleep steps. Restart only `dev:agent` during a sleep while keeping checkout and Inngest running; the run should continue from saved checkpoints.",
+      "verify": "In terminal 1, restart the agent with `AGENT_SETTLE_DELAY=20s npm run dev:agent`. Start checkout with `--fault feature`. Inngest should show observation, choice, action, and sleep steps. During a sleep, press Ctrl-C in terminal 1, then restart the agent there before the 20 seconds end. Leave checkout and Inngest running. The same run should continue from saved checkpoints. Return to plain `npm run dev:agent` after the drill.",
       "experiment": "Find the boundary between a service operation committing and Inngest recording a successful step result. What happens if the response is lost in that gap?",
       "mistakes": "A durable step records a successful result, not an effect it never heard back from. Do not restart the Inngest Dev Server for the local replay demonstration.",
       "extension": "Identify one step whose output could be recomputed without changing the result, and defend whether it should be checkpointed.",
@@ -34,8 +34,8 @@
       "start": "lesson-3",
       "solution": "lesson-4",
       "promise": "An unresolved incident pauses for a new service event and resumes with a fresh observation.",
-      "opening": "Start checkout with `--fault dependency --recover-after-ms 30000`. The current checkpoint escalates when the model selects `wait`. An external dependency can recover after the first alert; this incident should remain alive to observe that change.",
-      "edit": "Replace the temporary wait branch in `server/agent-workflow.ts` with `setRun(waiting)`, a correlated `waitForEvent`, and an event-sequence recheck. A timeout also reconciles an event that arrived just before the wait registration.",
+      "opening": "Start checkout with `--fault dependency --recover-after-ms 30000`. The current checkpoint escalates when the model selects `wait` or asks for help, because neither pause path is built. An external dependency can recover after the first alert; this incident should remain alive to observe that change.",
+      "edit": "Replace the temporary wait escalation in `server/agent-workflow.ts` with `setRun(waiting)`, a correlated `waitForEvent`, and an event-sequence recheck. Until the inbox is built, a model-selected help request is recorded as unavailable and parked on the same service-event wait; no question is sent to a person. A timeout also reconciles an event that arrived just before wait registration.",
       "verify": "Start a dependency fault with delayed recovery. The same run ID should wait, receive `health.recovered`, re-observe checkout, and complete. Send multiple alerts with `--alerts 3`; they should attach to one incident, not create three runs.",
       "experiment": "Run `--recover-after-ms 0` and watch the run remain waiting. Restart checkout healthy: the old run is superseded because the service instance changed. Why is reusing its approval or observation unsafe?",
       "mistakes": "A notification is not a state snapshot. The wake event only tells the agent to observe again; it must not treat the payload as proof of recovery.",
@@ -76,13 +76,13 @@
       "start": "lesson-6",
       "solution": "main",
       "promise": "The agent can ask a person a question, resume the same incident, and wait for independent recovery evidence.",
-      "opening": "Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint escalates on `request_help`; we will let the agent reach a person and keep the incident alive.",
-      "edit": "In `server/agent-workflow.ts`, remove the temporary help escalation. Reuse the persisted proposal and durable wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.",
+      "opening": "Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint can wait for spontaneous recovery, but it cannot reach a person when the model selects `request_help`. We will add that inbox path without ending the incident.",
+      "edit": "In `server/agent-workflow.ts`, remove the temporary help fallback to service-event waiting. Reuse the persisted proposal and durable human-decision wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.",
       "verify": "Answer the help request from the inbox. The same run resumes. If checkout is still degraded, it waits for the service's recovery event; only a fresh healthy observation completes it. The Activity feed should show the question, answer, pause, wake, and report.",
       "experiment": "Answer the person but leave `--recover-after-ms 0`: the answer alone must not mark checkout healthy. Restart the service healthy and explain why the old incident is superseded rather than completed.",
       "mistakes": "A human answer is new context, not evidence of recovery. The model can ask for help, but the harness owns the inbox request and resumption.",
       "extension": "Add a concise unresolved status in the operator app for a dependency that never recovers.",
-      "challenge": "Evaluate outcome, trajectory, and human boundary for feature, release, dependency, and lost-response runs. Which failure requires a policy or tool-contract change rather than a prompt change?"
+      "challenge": "Continue with the [capstone incident lab](/advanced-lab/). Evaluate outcome, trajectory, and human boundary for feature, release, dependency, and lost-response runs. Which failure requires a policy or tool-contract change rather than a prompt change?"
     }
   ],
   "editCues": {
@@ -93,7 +93,8 @@
       "Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes."
     ],
     "3": [
-      "Replace the temporary escalation with an event-correlated wait and sequence reconciliation."
+      "Replace the temporary wait escalation with an event-correlated wait. A help request also parks here until the inbox is built; record that the request was not delivered.",
+      "Remove the separate help escalation now that this checkpoint keeps the incident waiting."
     ],
     "4": [
       "Import the supplied proposal helpers.",
@@ -105,8 +106,10 @@
       "Derive one stable ID from the run, decision cycle, and selected action."
     ],
     "6": [
-      "Remove the temporary help escalation.",
-      "Let help use the persisted proposal and wait, then continue with a new observation."
+      "Remove `request_help` from the service-event wait condition so it can reach the inbox path below.",
+      "Remove the temporary log and wait reason that said human help was unavailable.",
+      "Let help use a persisted proposal and correlated human-decision wait, with its question as input.",
+      "After a human answer, continue to a fresh observation rather than executing a checkout operation."
     ]
   }
 }

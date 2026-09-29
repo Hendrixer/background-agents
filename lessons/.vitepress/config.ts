@@ -15,7 +15,7 @@ export default defineConfig({
       { text: "04 · Put a human in control", link: "/04-human-approval/" },
       { text: "05 · Make retries safe", link: "/05-safe-retries/" },
       { text: "06 · Run an incident drill", link: "/06-incident-drill/" },
-      { text: "Advanced lab · Earn trust", link: "/advanced-lab/" },
+      { text: "Capstone · Earn trust", link: "/advanced-lab/" },
     ],
     search: { provider: "local" },
   },

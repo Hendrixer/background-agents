@@ -136,7 +136,7 @@ Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes.
 -          await setRun(runId, 'escalated', 'Approval gate is not built yet')
 -          return
 -        }
--        const actionId = randomUUID()
+-        const actionId = `${runId}:${randomUUID()}`
 -        const response = await fetch(checkoutServiceUrl + '/operations', {
 -          method: 'POST',
 -          headers: { 'Content-Type': 'application/json' },
@@ -195,7 +195,7 @@ Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes.
 +        return
 +      }
 +      // An attempt-local ID is intentionally unsafe when a response is lost.
-+      const actionId = randomUUID()
++      const actionId = `${runId}:${randomUUID()}`
 +      const policy = actionPolicy[decision.action]
 +      if (policy === 'approval') {
 +        await step.run('approval-unavailable-' + cycle, () =>
@@ -234,7 +234,7 @@ Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes.
 +      await step.run(`settle-status-${cycle}`, () =>
 +        setRun(runId, 'waiting', 'Waiting briefly before observing the effect'),
 +      )
-+      await step.sleep(`settle-${cycle}`, '1s')
++      await step.sleep(`settle-${cycle}`, process.env.AGENT_SETTLE_DELAY ?? '1s')
 +    }
 +
 +    await step.run('stop-at-limit', () => setRun(runId, 'escalated', 'Decision limit reached'))
@@ -246,7 +246,7 @@ Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. T
 
 ## Verify
 
-Start checkout with `--fault feature`. Inngest should show observation, choice, action, and sleep steps. Restart only `dev:agent` during a sleep while keeping checkout and Inngest running; the run should continue from saved checkpoints.
+In terminal 1, restart the agent with `AGENT_SETTLE_DELAY=20s npm run dev:agent`. Start checkout with `--fault feature`. Inngest should show observation, choice, action, and sleep steps. During a sleep, press Ctrl-C in terminal 1, then restart the agent there before the 20 seconds end. Leave checkout and Inngest running. The same run should continue from saved checkpoints. Return to plain `npm run dev:agent` after the drill.
 
 ## Break it on purpose
 
