@@ -60,7 +60,7 @@ npm run dev:checkout -- --fault dependency --recover-after-ms 30000
 npm run dev:checkout -- --fault feature --lose-next-action-response
 ```
 
-Only one checkout process can use port 3004. For the durability lesson, restart only the agent endpoint and keep the Inngest Dev Server running. The [README](../README.md) has the full process and flag reference.
+Only one checkout process can use port 3004. For the durability lesson, restart only the agent endpoint and keep the Inngest Dev Server running. The repository README has the full process and flag reference.
 
 ## How the branches work
 
