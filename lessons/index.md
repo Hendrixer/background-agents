@@ -48,10 +48,17 @@ Use your own URL and never commit `.env`. An unclaimed database is temporary. Cl
 npm run db:push
 npm run preflight
 npm run db:seed
-npm run dev
 ```
 
-The dashboard is at [localhost:5173](http://127.0.0.1:5173), Inngest at [localhost:8288](http://127.0.0.1:8288), and these notes run in another terminal with `npm run docs` at [localhost:5174](http://127.0.0.1:5174). The default checkout starts healthy. For a drill, keep the other processes running and restart only checkout with a flag:
+Start the running system in **three separate terminals**. Each command keeps its terminal busy:
+
+| Terminal | Run | What it owns |
+| --- | --- | --- |
+| 1 | `npm run dev:agent` | The agent endpoint; restart this terminal for the durability exercise |
+| 2 | `npm run dev` | Operator API, dashboard, and Inngest Dev Server |
+| 3 | `npm run dev:checkout` | Checkout service, initially healthy |
+
+The dashboard is at [localhost:5173](http://127.0.0.1:5173), Inngest at [localhost:8288](http://127.0.0.1:8288), and these notes run in a fourth terminal with `npm run docs` at [localhost:5174](http://127.0.0.1:5174). For a drill, press Ctrl-C in **terminal 3 only** and start checkout again in that same terminal with a flag. Terminals 1 and 2 stay up:
 
 ```bash
 npm run dev:checkout -- --fault feature --alerts 3 --interval-ms 1000
@@ -60,7 +67,7 @@ npm run dev:checkout -- --fault dependency --recover-after-ms 30000
 npm run dev:checkout -- --fault feature --lose-next-action-response
 ```
 
-Only one checkout process can use port 3004. For the durability lesson, restart only the agent endpoint and keep the Inngest Dev Server running. The repository README has the full process and flag reference.
+Only one checkout process can use port 3004. For the durability lesson, press Ctrl-C in terminal 1 and run `npm run dev:agent` there again; keep terminals 2 and 3 running. The repository README has the full process and flag reference.
 
 ## How the branches work
 
