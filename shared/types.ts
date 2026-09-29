@@ -1,4 +1,4 @@
-export const ACTIONS = ["inspect_logs", "inspect_changes", "disable_feature", "rollback_release", "request_help", "complete", "defer"] as const;
+export const ACTIONS = ["inspect_logs", "inspect_changes", "disable_feature", "rollback_release", "request_help", "complete", "wait"] as const;
 export type ActionName = (typeof ACTIONS)[number];
 
 export type WorldState = Record<string, unknown>;

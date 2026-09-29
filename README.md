@@ -1,44 +1,29 @@
 # Build AI Agents that Never Sleep
 
-A one-day Node.js workshop on event-triggered background agents. Students build the harness. The supplied checkout simulator provides an editable world state, emits events, implements demo tools, and displays an operator inbox and run history.
+A one-day TypeScript workshop about agents that keep working after the prompt ends. Students build the harness. A supplied, separate checkout service provides a changing world to observe and a small operations API to act on. An operator app shows the inbox, incidents, and event history.
 
-## The boundary
+## System boundary
 
 ```text
-Simulator: save state ──> PostgreSQL
-Simulator: publish service event ──> Inngest
-Agent event handler: record event + create run ──> read latest state
-Agent run: decide ──> policy ──> tool or human pause
-Human reply ──> resumes that same run
-Later service event ──> starts another run
+checkout process (port 3004) ── alert ──> operator API (port 3001)
+checkout process <── fresh HTTP observation / operation ── incident agent (port 3002)
+operator inbox ── human decision ──> paused Inngest run
 ```
 
-The event payload is a signal, not the state the agent trusts. Saving state alone starts no run. The agent handler creates a separate run for every emitted event and copies the standing goal and optional completion condition at that point. The harness has no knowledge of simulator presets or event source. Presets only fill the admin form. A real producer can publish the same event shape.
+The checkout process owns its state in memory. Each start creates a new service instance with a fresh state. It sends a stable event ID until the operator API acknowledges it. The operator API persists events in Neon and opens **one run for an active incident**. Later alerts for that service instance join and wake the run. An event is a notification; the agent reads current checkout state over HTTP before deciding. A human decision also resumes the same run. An action changes checkout state, which the next observation must verify. On a service restart, an unfinished run is superseded because its old observations and approvals belong to a different instance.
 
-The optional completion condition is a field path and expected value, such as `health.status = healthy`. The harness evaluates it against the latest saved state. Without one, the model may propose the terminal `complete` action. The `defer` action ends a run when no further local action is justified; a future event starts a new run. Human approval and help responses use a durable Inngest wait and resume the existing run.
-
-## What runs
-
-| Process | Address | Job |
-| --- | --- | --- |
-| Simulator API | http://127.0.0.1:3001 | Editable state, event emission, demo operations, approvals |
-| Agent endpoint | http://127.0.0.1:3002/api/inngest | Inngest function code |
-| Dashboard | http://127.0.0.1:5173 | Inbox, activity, events, and simulator |
-| Inngest Dev Server | http://127.0.0.1:8288 | Durable checkpoints and traces |
-| Lesson notes | http://127.0.0.1:5174 | Markdown site, started separately |
-
-Neon PostgreSQL stores state, events, runs, tool effects, approvals, and the per-run activity log. Inngest stores workflow execution history. Keep the Inngest Dev Server running while restarting the agent endpoint during durability exercises.
+The default goal and `health.status = healthy` completion condition are set in `server/environment.ts`. Set `AGENT_GOAL` on the operator process to override the goal before a new incident opens. The model chooses an action from a narrow catalog. The harness owns approval, version preconditions, retries, waits, decision limits, and terminal status. The checkout service owns the effects and remembers action IDs so a retry does not repeat a committed effect.
 
 ## Setup
 
-You need Node.js LTS, npm, Git, an internet connection, and a working OpenAI API key and model. No local PostgreSQL installation, Neon account, or Inngest Cloud account is required.
+Bring Node.js LTS, npm, Git, an editor, an internet connection, and an LLM API key with usage. You do not need local PostgreSQL, deployment, or an Inngest Cloud account.
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Open [neon.new](https://neon.new/) and copy its **PostgreSQL connection string**, including SSL parameters, into `.env`. The claim URL is different from the connection string.
+Get a temporary PostgreSQL connection string from [neon.new](https://neon.new/) and put the **connection string**, including SSL options, in `.env`, with your model credentials:
 
 ```dotenv
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
@@ -46,7 +31,7 @@ OPENAI_API_KEY=your-key
 OPENAI_MODEL=your-available-model
 ```
 
-Use the actual URL Neon gives you, and keep `.env` out of Git. An unclaimed database expires after 72 hours. For VOD practice after that window, create a new one or claim the database before expiry. Neon says neon.new is being sunset in favor of [Claimable Neon](https://neon.com/claimable-neon); use its current no-account flow if the old URL has moved.
+Do not commit `.env`. An unclaimed Neon database is temporary; claim it or make a new one for later practice.
 
 ```bash
 npm run db:push
@@ -55,36 +40,41 @@ npm run db:seed
 npm run dev
 ```
 
-In another terminal, `npm run docs` starts the notes. For restart exercises, run `dev:lab`, `dev:web`, `dev:inngest`, and `dev:agent` in separate terminals and restart only the agent process. An instructor can use `AGENT_DEMO_MODE=1 npm run dev:agent` for deterministic choices without an LLM call.
+In another terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. `AGENT_DEMO_MODE=1 npm run dev:agent` gives instructors deterministic choices for rehearsal.
 
-## Use the simulator
+| Process | Command | Address |
+| --- | --- | --- |
+| Checkout service | `npm run dev:checkout -- --fault feature` | 127.0.0.1:3004 |
+| Operator API | `npm run dev:operator` | 127.0.0.1:3001 |
+| Agent endpoint | `npm run dev:agent` | 127.0.0.1:3002 |
+| Operator UI | `npm run dev:web` | 127.0.0.1:5173 |
+| Inngest Dev Server | `npm run dev:inngest` | 127.0.0.1:8288 |
 
-On `/admin`, save the standing goal, edit and save the state JSON, then send one event with a type and payload. These are separate actions so you can verify that state changes do not summon an agent by themselves. The shortcut buttons only populate the form; inspect their JSON before saving. To simulate recovery, save a recovered state and emit another event. The new event starts a new run; it does not resume the earlier deferred run. An interval-based producer would be another source of these events, but the state editor is what lets us test observation and stale-action behavior.
+`npm run dev` starts all five, with a healthy checkout by default. For a fault drill, stop the checkout process and start it with flags while keeping the other four processes alive:
 
-The dashboard has four routes:
+```bash
+npm run dev:checkout -- --fault feature --alerts 3 --interval-ms 1000
+npm run dev:checkout -- --fault release
+npm run dev:checkout -- --fault dependency --recover-after-ms 30000
+npm run dev:checkout -- --fault feature --lose-next-action-response
+npm run dev:checkout -- --fault none
+```
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Inbox for approvals and help requests |
-| `/activity` | Runs, saved decision/activity feed, and reports |
-| `/events` | Events emitted by the simulator |
-| `/admin` | State editor, event emitter, goal configuration, and failure drill |
+Run **one checkout process at a time**. `--fault` accepts `none`, `feature`, `release`, or `dependency`; each start resets state and creates a new instance. `--alerts` sets how many alert events to emit, and `--interval-ms` sets their spacing. `--recover-after-ms 0` leaves a dependency degraded until restart. The lost-response flag commits the first mutating operation and replies 503 once, exposing the side-effect/acknowledgement gap. For the agent restart exercise, restart only `dev:agent`; keep Inngest and checkout running.
 
-Demo operations can inspect recent events and state, disable the feature flag, or roll back the release. An operation changes only the fields it owns; it does **not** declare the service healthy. Recovery must be represented in the observed state and announced with another event. The failure drill loses one tool acknowledgement after the effect commits, so the same action ID must return the saved result on retry.
+The UI has three routes: `/` for human requests, `/activity` for incident runs and their saved activity, and `/events` for service events and current checkout state. There is no simulator admin page. The checkout process is a small, inspectable synthetic service; the agent and operator API do not know which startup fault flag created its state.
 
-The current schema keeps a few unused columns from earlier workshop prototypes so existing Neon rehearsal databases can be used without a destructive migration. No scenario rule reads those columns.
+The workshop uses one checkout service, so at most one active incident is associated with its current instance. New events are attached by service identity and current active run, not by an LLM classifier. A production system would need incident correlation across multiple services and time windows, an event outbox durable across producer restarts, authentication, and a more rigorous recovery predicate. The historical database schema still maps unused prototype columns to avoid a destructive migration of existing Neon rehearsal data.
 
 ## Lesson branches
 
-Each lesson starts on a branch containing the previous lesson's solution. The next branch is that lesson's finished code.
+Each lesson starts with the prior lesson's solution. The next branch has the completed code. Read [lesson 00](lessons/index.md) first; the notes include the engineering discussion and exact edits for live coding. Branch switches change source code, not Neon or Inngest history.
 
 | Lesson | Start | Solution |
 | --- | --- | --- |
 | 1 · Goal and loop | `lesson-1` | `lesson-2` |
 | 2 · Durable steps | `lesson-2` | `lesson-3` |
-| 3 · Fresh state and event boundaries | `lesson-3` | `lesson-4` |
+| 3 · Wait for events | `lesson-3` | `lesson-4` |
 | 4 · Human approval | `lesson-4` | `lesson-5` |
 | 5 · Safe retries | `lesson-5` | `lesson-6` |
 | 6 · Help and handoff | `lesson-6` | `complete` |
-
-Read [lesson 00](lessons/index.md) first. The notes are both student material and the instructor's live-coding guide. `npm run notes:check` verifies code blocks against adjacent branch diffs. A branch switch changes code, not Neon or Inngest history; use a fresh state edit and event for each demonstration.
