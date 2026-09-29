@@ -2,7 +2,7 @@
 
 Start: `lesson-5` · Finished solution: `lesson-6`
 
-**Outcome:** A tool response can disappear after its effect commits; the same action ID must return the prior result instead of repeating the effect.
+**Outcome:** A lost tool response can be retried with the same action ID without repeating the effect.
 
 ## The engineering idea
 
@@ -10,7 +10,7 @@ Retries sound easy until the failure lands between an effect and its acknowledge
 
 Durable execution saves successful step results. It cannot save a result it never received. The service that owns the side effect must therefore recognize repeated requests. We already send an `actionId` derived from the run and decision. Now the operations API will store that ID and the result in the same transaction as the effect. If a request arrives with the same ID, it returns the recorded result without applying the action again. This is application-level idempotency at the effect boundary. [Inngest's retry guide](https://www.inngest.com/docs/guides/error-handling) explicitly pairs step retries with idempotent side effects.
 
-The **Lose the next tool response** button creates the exact uncertainty window: the operation commits, then the API responds with 503 once. Watch the Inngest trace retry `execute-action-*`. Before our edit, the lab creates a new action row on each request. After the edit, the second request sees the prior ID and result. The visible outcome may look the same for `disable_feature`, since setting a flag to false twice is harmless. The action history proves whether we actually prevented duplicate execution.
+The **Lose the next tool response** button creates the exact uncertainty window: the operation commits, then the API responds with 503 once. Watch the Inngest trace retry `execute-action-*`. Before our edit, the operations API creates a new action row on each request. After the edit, the second request sees the prior ID and result. The visible outcome may look the same for `disable_feature`, since setting a flag to false twice is harmless. The action history proves whether we actually prevented duplicate execution.
 
 We will also add cancellation. A background run has a lifecycle after the person who started it leaves; someone must still be able to stop it. Inngest's `cancelOn` event correlates cancellation to the run, and our harness checks persisted run status at a loop boundary. [The Inngest cancellation reference](https://www.inngest.com/docs/reference/typescript/functions/cancel-on) notes that cancellation occurs between steps, so an in-flight step can finish. Cancellation is a clear state transition, not a magic rollback of completed external work.
 
@@ -18,7 +18,7 @@ My rule for unattended agents is to make the failure modes visible. Show the ret
 
 ### A retry is a request for the same intent
 
-The [AWS Builders Library explanation of idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) makes a distinction I want us to use: two requests with the same parameters are not necessarily the same *intent*. A customer might deliberately place two identical orders. A stable client-generated request ID lets the service tell an intended retry from a new operation. Our `actionId` is that intent key. It must stay the same across transport attempts. The lab checks that a reused key belongs to the same lab, but it does not compare the original action and arguments. A production service should reject a reused key when that request fingerprint differs; otherwise it might return an old result for a different command.
+The [AWS Builders Library explanation of idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) makes a distinction I want us to use: two requests with the same parameters are not necessarily the same *intent*. A customer might deliberately place two identical orders. A stable client-generated request ID lets the service tell an intended retry from a new operation. Our `actionId` is that intent key. It must stay the same across transport attempts. The operations API checks that a reused key has the same environment, action name, and input. If the request fingerprint differs, it rejects the reuse rather than returning an old result for a different command.
 
 The transaction boundary matters. If we record the key before the effect and crash, we may falsely claim success. If we apply the effect and record the key in separate transactions, a crash between them can repeat the effect. In the lab, the action row and service change belong to one database transaction. That gives us a concrete guarantee for our own database. It does not create an atomic transaction with an external payment or deployment provider. For that case, I need the provider's idempotency facility, a query to reconcile an uncertain result, or an explicit `unknown` state that stops the agent from guessing.
 
@@ -30,100 +30,99 @@ Cancellation has the same boundary. A cancellation event can prevent future step
 
 ## See it in the lab
 
-On `/admin`, create **Feature rollout**, arm **Lose the next tool response**, start an agent, and send 12 health events one second apart. The first tool call commits but returns 503. Keep `/activity` and `/events` open: the state of the world and the response seen by the agent are now different.
+Load Feature rollout, save state, arm the lost-response fault, and emit one event. The first operation commits but replies 503. The model cannot infer whether the effect happened. We will make the effect-owning service return the saved result for the same action ID.
 
 ## Live coding
 
-Make the two focused edits in `server/agent-workflow.ts`, then the two edits inside `applyAction` in `server/lab-data.ts`. The rest of the simulator code is supplied. The ID already passed from the workflow is `runId:iteration:action`.
+Add the two cancellation checks in server/agent-workflow.ts. In server/lab-data.ts, first return a prior result for the same action ID, then make the insert use that ID and handle a concurrent duplicate. Keep the state change and action ledger in one database transaction.
 
 These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Register a cancellation event that must match this run ID. Inngest can stop a sleeping run at a step boundary.
+Register a cancellation event scoped to this run ID.
 
 ```diff
-     name: "Incident response agent",
-     triggers: { event: "lab/run.started" },
+     name: "Event-triggered background agent",
+     triggers: { event: "service/event.received" },
      retries: 2,
-+    cancelOn: [{ event: "lab/run.cancelled", match: "data.runId" }],
-     onFailure: async ({ error, event }) => {
-       const original = event.data.event as { data?: { runId?: string } };
-       if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
++    cancelOn: [{ event: "agent/run.cancelled", match: "data.eventId" }],
+     // Separate events create separate runs. Only one step per environment executes
+     // at a time; a waiting human approval does not block later runs.
+     concurrency: { limit: 1, key: "event.data.environmentId" },
 ```
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Read the persisted run status before the next cycle does work. This makes the application state agree with cancellation.
+Check persisted cancellation before another cycle starts.
 
 ```diff
-     while (decisions < 12) {
-       cycle += 1;
-       const currentLab = await activeLab();
-+      const currentRun = await getRun(runId);
-+      if (currentRun.status === "cancelled") return;
-       if (currentLab?.id !== labId) {
-         await step.run(`scenario-reset-${cycle}`, () => setRun(runId, "cancelled", "Scenario was reset"));
-         return;
+     if (["completed", "failed", "cancelled", "escalated", "deferred"].includes(run.status)) return;
+ 
+     for (let cycle = 1; cycle <= 8; cycle++) {
++      if ((await getRun(runId)).status === "cancelled") return;
+       const state = await step.run(`observe-state-${cycle}`, () => agentState(environmentId, runId));
+ 
+       if (goalSatisfied(state, run.goalCondition)) {
 ```
 
 ### Edit 3 · `server/lab-data.ts`
 
-At the start of `applyAction`, return a saved result when the same action ID has already committed.
+Return the previously committed result for the same action ID, and reject a mismatched reuse.
 
 ```diff
  }
  
- export async function applyAction(labId: string, actionId: string, name: ActionName, input: Record<string, unknown> = {}) {
+ export async function applyAction(environmentId: string, actionId: string, name: ActionName, input: Record<string, unknown> = {}) {
 +  const [prior] = await db.select().from(actions).where(eq(actions.id, actionId)).limit(1);
 +  if (prior) {
-+    if (prior.labId !== labId) throw new Error("Action ID belongs to a different lab instance");
++    if (prior.environmentId !== environmentId || prior.name !== name || JSON.stringify(prior.input) !== JSON.stringify(input)) throw new Error("Action ID conflict");
 +    return prior.result;
 +  }
 +
    return db.transaction(async (tx) => {
-     const [lab] = await tx.select().from(labs).where(eq(labs.id, labId)).limit(1);
-     if (!lab) throw new Error("Lab instance not found");
+     const [environment] = await tx.select().from(environments).where(eq(environments.id, environmentId)).limit(1).for("update");
+     if (!environment) throw new Error("Environment not found");
 ```
 
 ### Edit 4 · `server/lab-data.ts`
 
-Store the caller-provided action ID instead of a fresh UUID. If another request wins the insert, read and return its result without applying the effect again.
+Insert the caller's action ID atomically with the effect; a concurrent duplicate reads the winner's result.
 
 ```diff
-         break;
+         throw new Error(`Action ${name} is a harness terminal action, not a service operation`);
      }
  
--    await tx.insert(actions).values({ id: randomUUID(), labId, name, input, result });
-+    const [inserted] = await tx.insert(actions).values({ id: actionId, labId, name, input, result }).onConflictDoNothing().returning();
+-    await tx.insert(actions).values({ id: randomUUID(), environmentId, name, input, result });
++    const [inserted] = await tx.insert(actions).values({ id: actionId, environmentId: environmentId, name, input, result }).onConflictDoNothing().returning();
 +    if (!inserted) {
 +      const [existing] = await tx.select().from(actions).where(eq(actions.id, actionId)).limit(1);
-+      if (!existing || existing.labId !== labId) throw new Error("Action ID conflict");
++      if (!existing || existing.environmentId !== environmentId || existing.name !== name || JSON.stringify(existing.input) !== JSON.stringify(input)) throw new Error("Action ID conflict");
 +      return existing.result;
 +    }
- 
-     if (name === "disable_feature") await tx.update(labs).set({ featureEnabled: false }).where(eq(labs.id, labId));
-     if (name === "rollback_release") await tx.update(labs).set({ release: "v1-stable" }).where(eq(labs.id, labId));
+     if (name === "disable_feature" || name === "rollback_release") {
+       await tx.update(environments).set({ state, version: sql`${environments.version} + 1` }).where(eq(environments.id, environmentId));
+     }
 ```
 
 Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
-Arm the failure and run Feature rollout. In the trace, `execute-action-*` retries. In the `/activity` log and `actions` table, the matching committed action ID appears once, though attempts can appear more than once. Use **Cancel run** on `/activity` while a workflow waits and confirm it stops.
+Arm the fault and emit one Feature rollout event. Activity should show an attempt failure and a later successful response. The matching action ID appears once in the actions table. Cancel a waiting run from Activity and confirm future steps stop, while prior effects remain visible.
 
 ## Break it on purpose
 
-Before adding the `applyAction` edits, the retry inserts a second action row because the server makes a new UUID. After the edits, the first response can still be lost, but the second request returns the saved result. Reset the scenario between the two runs.
+Compare the action ledger on lesson-5 and lesson-6 after the lost-response drill. Before the edit, retries create multiple rows with different server IDs. After it, one stable caller ID owns the result.
 
 ## Engineering challenge
 
-First, reuse one action ID with a different action or input. What result does this lab return, and what conflict check would a production API need? Then imagine `executeAction` calls an external provider that ignores idempotency keys. A timeout leaves the outcome unknown. Design a reconciliation query, a persisted `unknown` state, and a policy for when the agent may retry or must ask a human. Explain why a local transaction cannot make a remote side effect atomic with our database. Finally, cancel a waiting run and identify which completed effects remain and which future steps stop.
+Design a persisted unknown outcome for an external tool that times out after a possible commit. What reconciliation query would you run before retrying? What can cancellation prevent, and which completed effects require compensation?
 
 ## Catch up
 
-Your solution is `lesson-6`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 5 progress"`, then `git switch lesson-6`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
+Your solution is `lesson-6`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 5 progress"`, then `git switch lesson-6`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
 
-**Common mistake:** Idempotency must live where the effect happens. A client-side “already called” flag disappears on restart. Keep the same `actionId` across retries; a new UUID for each attempt defeats the table constraint.
+**Common mistake:** The stable ID must identify one intent, not one HTTP attempt. A client-side flag disappears on restart. Reusing a key with a different action or input must be rejected.
 
-**Optional extension:** Consider how you would carry this key through a third-party API that supports an idempotency header.
+**Optional extension:** Map the action ID to a third-party API's idempotency key, then explain what to do when the provider has no such facility.
