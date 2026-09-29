@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const { lessons, editCues } = JSON.parse(readFileSync(join(root, "scripts/lesson-data.json"), "utf8"));
 const check = process.argv.includes("--check");
-const teachingFiles = ["server/agent-data.ts", "server/agent-workflow.ts", "server/lab-data.ts"];
+const teachingFiles = ["server/agent-workflow.ts"];
 
 function diffBlocks(start, solution) {
   const diff = execFileSync("git", ["diff", "--unified=3", start, solution, "--", ...teachingFiles], {
@@ -30,7 +30,7 @@ function diffBlocks(start, solution) {
       saveHunk();
       hunk = [];
     } else if (hunk && /^[ +\-]/.test(line) && !line.startsWith("+++ ") && !line.startsWith("--- ")) {
-      hunk.push(line);
+      hunk.push(line.replace(/[ \t]+$/, ""));
     }
   }
   saveHunk();
@@ -64,7 +64,7 @@ function renderLesson(lesson, number) {
     "",
     lesson.edit,
     "",
-    "These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.",
+    "These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.",
     "",
   ];
 
@@ -91,7 +91,7 @@ function renderLesson(lesson, number) {
     "",
     "## Catch up",
     "",
-    `Your solution is \`${lesson.solution}\`. Check your work with \`git status --short\`. If you need to switch with unfinished edits, save them first with \`git stash push -u -m "lesson ${number} progress"\`, then \`git switch ${lesson.solution}\`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.`,
+    `Your solution is \`${lesson.solution}\`. Check your work with \`git status --short\`. If you need to switch with unfinished edits, save them first with \`git stash push -u -m "lesson ${number} progress"\`, then \`git switch ${lesson.solution}\`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.`,
     "",
     `**Common mistake:** ${lesson.mistakes}`,
     "",
