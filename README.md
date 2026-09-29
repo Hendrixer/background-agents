@@ -49,6 +49,10 @@ Keep these commands running in **three separate terminals**:
 
 In a fourth terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. Every agent run uses the configured OpenAI model. The agent startup line names the model, and http://127.0.0.1:3002/api/health reports it so you can check before teaching.
 
+If a startup command reports that its port is in use, stop the earlier workshop process in its terminal before starting another copy. The commands check their expected ports and fail instead of silently moving the dashboard or Inngest to another address.
+
+On macOS or Linux, `npm run stop` ends all workshop processes started from this repository, including the separate agent, checkout, and notes servers. Use it when you want every workshop port free again; keep using Ctrl-C in one terminal when a lesson asks you to restart only that process.
+
 For the durable-restart drill, start terminal 1 with `AGENT_SETTLE_DELAY=20s npm run dev:agent`. That gives you time to stop and restart only the agent while an Inngest sleep is pending. Use the plain command again afterward; the normal delay is one second.
 
 | Process | Command | Address |
