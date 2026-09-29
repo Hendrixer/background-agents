@@ -2,7 +2,7 @@
 
 Start: `lesson-4` · Finished solution: `lesson-5`
 
-**Outcome:** A model can propose a rollback, but only an explicit human decision can authorize it.
+**Outcome:** A disruptive action becomes a persisted request that pauses and resumes the same run.
 
 ## The engineering idea
 
@@ -10,7 +10,7 @@ The model can notice that a release looks faulty. That is different from having 
 
 I think of the **agent inbox** as the place where unattended work reaches back to me. An inbox item should tell me what the agent wants to do, why, what exact state it expects, and when the request expires. I should be able to approve, reject, or give the agent information without holding a live chat open. The agent can wait while I am away, and I can respond when I have enough context. This is one reason I believe background agents can multiply productivity without asking us to give up control.
 
-The sequence matters. First persist the proposal, including the expected release. Then wait for a decision event correlated to that proposal. After waking, read the stored decision because a notification might arrive early or be missed. If the person rejects or the proposal expires, the run escalates. If they approve, read the service again before executing: an approval for `v2-bad` should not authorize a rollback of some later release. [Inngest's HITL guide](https://www.inngest.com/docs/ai-patterns/human-in-the-loop) uses the same durable propose–wait–resume pattern and explains event correlation.
+The sequence matters. First persist the proposal, including the state version the agent observed. Then wait for a decision event correlated to that proposal. After waking, read the stored decision because a notification might arrive early or be missed. If the person rejects or the proposal expires, the run escalates. If they approve, read the service again before executing: an approval based on version 4 should not authorize a rollback against version 5, even if a different field changed. [Inngest's HITL guide](https://www.inngest.com/docs/ai-patterns/human-in-the-loop) uses the same durable propose–wait–resume pattern and explains event correlation.
 
 The model still chooses `rollback_release` as the next action. The harness turns that choice into a proposal rather than a tool call. That is the authority boundary. The model may be wrong about the diagnosis; the human may be wrong too; but the system now exposes the decision with context and an audit trail. Read-only inspections can proceed without approval, while disruptive actions stop at the gate.
 
@@ -22,7 +22,7 @@ As you code, ask whether “approved” is enough by itself. The recheck answers
 
 I do not want a person approving every read-only log inspection. That would turn the inbox into noise. I do want a person involved when an action is disruptive, hard to reverse, expensive, or based on ambiguous evidence. [OpenAI's agent-building guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) recommends intervention for high-risk actions and when an agent exceeds its failure limits. The design choice is not “autonomous or manual”; it is which decisions should be delegated, which should be reviewed, and which should be refused entirely.
 
-A useful approval is a **scoped capability**: permission for this run, this action, against this expected release, before this expiry. The proposal is persisted so the human can answer after the original request is gone. Rechecking the release after approval closes a time-of-check/time-of-use gap. If the world changed, the old permission no longer describes the action about to happen. The inbox should show that invalidation clearly rather than quietly applying the rollback anyway.
+A useful approval is a **scoped capability**: permission for this run, this action, against this expected state version, before this expiry. The proposal is persisted so the human can answer after the original request is gone. Rechecking the version after approval closes a time-of-check/time-of-use gap. If the world changed, the old permission no longer describes the action about to happen. The operations API checks that version again while applying the effect; a harness-only recheck would leave another race. The inbox should show invalidation clearly rather than quietly applying the rollback anyway.
 
 Research on [human-AI delegation](https://arxiv.org/abs/2303.09224) studies the fact that the human and model can have different strengths, and that handing off the right cases matters to team performance. My engineering interpretation is that a human should receive a *decision packet*, not a vague “Approve?” button: the proposed action, evidence, expected state, possible impact, and a way to decline or supply more information. An approval prompt with no context invites rubber-stamping.
 
@@ -34,22 +34,21 @@ Human availability is another design constraint. What happens when the person is
 
 ## See it in the lab
 
-On `/admin`, create **Faulty release**, start an agent, and send 12 health events one second apart. On this branch, a selected rollback runs immediately. Inspect the release and the proposed action in `/activity` before we add the inbox gate.
+Load the Faulty release shortcut, save its state, and emit a deployment event. On this branch the rollback is not yet gated. We will move the authority boundary: the model may propose rollback, but a person must authorize the exact action against the observed state version.
 
 ## Live coding
 
-In `server/agent-workflow.ts`, add the imports and the rollback gate immediately after `actionId` is computed. The final `execute-action` call must remain below the gate.
+In server/agent-workflow.ts, import the supplied proposal helpers and insert the approval gate after actionId and policy are computed. Keep the execute-action step below the gate so an unapproved rollback cannot reach it.
 
 These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Import the supplied proposal storage helpers. They persist the exact request and human decision in PostgreSQL.
+Import the supplied proposal and decision helpers.
 
 ```diff
- import { activeLab, addTimeline } from "./lab-data";
--import { agentState, getRun, hasRecovered, recordDecision, setIteration, setRun } from "./agent-data";
-+import { agentState, getProposal, getRun, hasRecovered, proposeAction, recordDecision, setIteration, setRun, staleProposal } from "./agent-data";
+-import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun, startRun } from "./agent-data";
++import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal, startRun } from "./agent-data";
  import { chooseAction, writeReport } from "./agent-brain";
  import { inngest } from "./inngest";
  import { logAgentActivity } from "./agent-log";
@@ -57,63 +56,65 @@ Import the supplied proposal storage helpers. They persist the exact request and
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Insert the rollback gate after `actionId` is computed and before `execute-action`. Read the proposal after every wakeup, handle rejection or expiry, and recheck the release before executing.
+Insert the approval gate between the action choice and the execute-action step. A human reply resumes this run.
 
 ```diff
        }
- 
-       const actionId = `${runId}:${iteration}:${decision.action}`;
-+      if (decision.action === "rollback_release") {
-+        const input = { expectedRelease: state.service.release };
+       const actionId = `${runId}:${cycle}:${decision.action}`;
+       const policy = actionPolicy[decision.action];
++      if (policy === "approval") {
++        const input = { expectedVersion: state.world.version };
 +        const proposalId = await step.run(`propose-action-${cycle}`, async () => {
-+          const proposal = await proposeAction(labId, runId, actionId, decision.action, input);
++          const proposal = await proposeAction(environmentId, runId, actionId, decision.action, input);
 +          return proposal.id;
 +        });
 +
-+        let approval = await step.run(`read-approval-${cycle}`, () => getProposal(proposalId));
-+        let approvalCheck = 0;
-+        while (approval.status === "pending") {
-+          approvalCheck += 1;
-+          await step.waitForEvent(`wait-for-approval-${cycle}-${approvalCheck}`, { event: "lab/approval.decided", if: `async.data.proposalId == "${proposalId}"`, timeout: "10s" });
-+          approval = await step.run(`reconcile-approval-${cycle}-${approvalCheck}`, () => getProposal(proposalId));
++        let proposal = await step.run(`read-approval-${cycle}`, () => getProposal(proposalId));
++        let check = 0;
++        while (proposal.status === "pending") {
++          check++;
++          await step.waitForEvent(`wait-for-human-${cycle}-${check}`, {
++            event: "agent/approval.decided",
++            if: `async.data.proposalId == "${proposalId}"`,
++            timeout: "10s",
++          });
++          proposal = await step.run(`reconcile-human-${cycle}-${check}`, () => getProposal(proposalId));
 +        }
-+
-+        if (approval.status === "rejected" || approval.status === "expired") {
-+          await step.run(`stop-after-human-decision-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${approval.status}`));
++        if (proposal.status !== "approved") {
++          await step.run(`stop-after-human-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${proposal.status}`));
 +          return;
 +        }
-+        if (approval.status !== "approved") continue;
-+
-+        const fresh = await step.run(`recheck-rollback-${cycle}`, () => agentState(labId, runId));
-+        if (fresh.service.release !== input.expectedRelease) {
++        const fresh = await step.run(`recheck-approved-state-${cycle}`, () => agentState(environmentId, runId));
++        if (fresh.world.version !== input.expectedVersion) {
 +          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
-+          continue;
++          await step.run(`defer-stale-${cycle}`, () => setRun(runId, "deferred", "State changed; a new event can start a new run"));
++          return;
 +        }
 +      }
 +
-       await step.run(`execute-action-${cycle}`, () => executeAction(labId, actionId, decision.action));
-       await step.run(`wait-status-after-action-${cycle}`, () => setRun(runId, "waiting", "Waiting for the service to report its new state"));
-       await step.waitForEvent(`wait-after-action-${cycle}`, { event: "lab/observation", match: "data.labId", timeout: "10s" });
+       const result = await step.run(`execute-action-${cycle}`, () =>
+         executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
+       if (result.stale === true) {
 ```
 
 Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
-Start an agent from `/admin` on Faulty release. It should reach `needs approval` without rolling back. Stop and restart only the agent endpoint, then approve in the inbox on `/`. Send a new health-event batch if the earlier one ended; the rollback should happen once and the run should verify recovery. Reset and repeat with Deny to see `escalated`.
+With Faulty release, emit one event. The run should pause in needs approval without changing the release. Approve from the inbox; the same run resumes and rolls back. It then defers until the simulator saves healthy state and emits a new event. Repeat with Deny to see escalation.
 
 ## Break it on purpose
 
-Leave a proposal pending while the agent process is down, approve, then restart it. The decision is in PostgreSQL and the wait reconciles even if the notification arrived before the endpoint was ready. For an expiry rehearsal, temporarily shorten the proposal expiry in `server/agent-data.ts` and reset afterward.
+Stop only dev:agent while a proposal is pending, answer in the inbox, and restart it. Then repeat but change the state version before approving. The original approval must become stale rather than authorizing an action against new state.
 
 ## Engineering challenge
 
-Treat an approval as a capability with a scope and lifetime. Write down its subject, action, expected release, expiry, and evidence. Our code rechecks the release before rollback; identify one more precondition you would revalidate at execution time and one case where you would require a new approval. Then propose an inbox item that lets a busy engineer make the decision without reading the full trace. Test rejection and explain why an unanswered request must be a visible run state rather than a hung function.
+Treat approval as a capability. Define subject, action, expected state, expiry, and audit record. What should happen if the request expires while the operator is away? Design an inbox item that lets someone decide without reading the full trace.
 
 ## Catch up
 
-Your solution is `lesson-5`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 4 progress"`, then `git switch lesson-5`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
+Your solution is `lesson-5`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 4 progress"`, then `git switch lesson-5`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
 
-**Common mistake:** Do not approve a proposal from an older lab reset. The inbox shows requests for the current lab; reset creates a new lab ID. If approval seems stuck, inspect the `wait-for-approval-*` trace and the saved proposal status.
+**Common mistake:** A human reply resumes the existing run; a service event starts another run. The approval is scoped to one proposed action and one observed version, not a standing permission.
 
-**Optional extension:** Add a second gated action and decide whether it should require the same approval shape or a different one.
+**Optional extension:** Add a second action that needs approval, and state what evidence its inbox item should include.
