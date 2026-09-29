@@ -47,12 +47,21 @@ These code blocks show the exact changes between the start and solution branches
 Import the supplied proposal helpers.
 
 ```diff
- import { randomUUID } from "node:crypto";
--import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
-+import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, recordToolAction, setIteration, setRun, staleProposal } from "./agent-data";
- import { chooseAction, writeReport } from "./agent-brain";
- import { inngest } from "./inngest";
- import { logAgentActivity } from "./agent-log";
+ import { randomUUID } from 'node:crypto'
+ import {
+   agentState,
++  getProposal,
+   getRun,
+   goalSatisfied,
++  proposeAction,
+   recordDecision,
+   recordToolAction,
+   setIteration,
+   setRun,
++  staleProposal,
+ } from './agent-data'
+ import { chooseAction, writeReport } from './agent-brain'
+ import { inngest } from './inngest'
 ```
 
 ### Edit 2 · `server/agent-workflow.ts`
@@ -60,41 +69,55 @@ Import the supplied proposal helpers.
 Replace the temporary approval escalation with a persisted proposal, durable decision wait, and fresh-state recheck.
 
 ```diff
-       const actionId = randomUUID();
-       const policy = actionPolicy[decision.action];
-       if (policy === "approval") {
--        await step.run("approval-unavailable-" + cycle, () => setRun(runId, "escalated", "Approval gate is not built yet"));
--        return;
-+        const input = { expectedVersion: state.world.version };
+       const actionId = randomUUID()
+       const policy = actionPolicy[decision.action]
+       if (policy === 'approval') {
+-        await step.run('approval-unavailable-' + cycle, () =>
+-          setRun(runId, 'escalated', 'Approval gate is not built yet'),
++        const input = { expectedVersion: state.world.version }
 +        const proposalId = await step.run(`propose-action-${cycle}`, async () => {
-+          const proposal = await proposeAction(environmentId, runId, actionId, decision.action, input);
-+          return proposal.id;
-+        });
-+        let proposal = await step.run(`read-human-${cycle}`, () => getProposal(proposalId));
-+        let check = 0;
-+        while (proposal.status === "pending") {
-+          check++;
++          const proposal = await proposeAction(
++            environmentId,
++            runId,
++            actionId,
++            decision.action,
++            input,
++          )
++          return proposal.id
++        })
++        let proposal = await step.run(`read-human-${cycle}`, () => getProposal(proposalId))
++        let check = 0
++        while (proposal.status === 'pending') {
++          check++
 +          await step.waitForEvent(`wait-for-human-${cycle}-${check}`, {
-+            event: "agent/approval.decided",
-+            if: `async.data.proposalId == "${proposalId}"`, timeout: "10s",
-+          });
-+          proposal = await step.run(`reconcile-human-${cycle}-${check}`, () => getProposal(proposalId));
++            event: 'agent/approval.decided',
++            if: `async.data.proposalId == "${proposalId}"`,
++            timeout: '10s',
++          })
++          proposal = await step.run(`reconcile-human-${cycle}-${check}`, () =>
++            getProposal(proposalId),
++          )
 +        }
-+        if (proposal.status !== "approved") {
-+          await step.run(`stop-after-human-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${proposal.status}`));
-+          return;
++        if (proposal.status !== 'approved') {
++          await step.run(`stop-after-human-${cycle}`, () =>
++            setRun(runId, 'escalated', `Human decision: ${proposal.status}`),
++          )
++          return
 +        }
-+        const fresh = await step.run(`recheck-approved-state-${cycle}`, () => agentState(environmentId, runId));
++        const fresh = await step.run(`recheck-approved-state-${cycle}`, () =>
++          agentState(environmentId, runId),
+         )
+-        return
 +        if (fresh.world.version !== input.expectedVersion) {
-+          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
-+          continue;
++          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId))
++          continue
 +        }
        }
 
-       const result = await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
+       const result = await step.run(`execute-action-${cycle}`, () =>
 ```
 
-Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
+Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 

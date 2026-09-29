@@ -33,35 +33,52 @@ These code blocks show the exact changes between the start and solution branches
 Replace the temporary escalation with an event-correlated wait and sequence reconciliation.
 
 ```diff
-       await step.run(`record-decision-${cycle}`, () => recordDecision(environmentId, runId, cycle, decision.action, decision.reason));
+       )
 
-       if (decision.action === "wait" || (decision.action === "complete" && run.goalCondition)) {
--        await step.run("wait-unavailable-" + cycle, () => setRun(runId, "escalated", "Event wait is not built yet"));
--        return;
-+        if (decision.action === "complete") {
-+          await step.run(`reject-completion-${cycle}`, () => logAgentActivity(environmentId, runId, "human", "Completion blocked by configured goal condition", { condition: run.goalCondition }));
+       if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
+-        await step.run('wait-unavailable-' + cycle, () =>
+-          setRun(runId, 'escalated', 'Event wait is not built yet'),
++        if (decision.action === 'complete') {
++          await step.run(`reject-completion-${cycle}`, () =>
++            logAgentActivity(
++              environmentId,
++              runId,
++              'human',
++              'Completion blocked by configured goal condition',
++              { condition: run.goalCondition },
++            ),
++          )
 +        }
-+        await step.run(`wait-status-${cycle}`, () => setRun(runId, "waiting", decision.action === "wait" ? decision.reason : "Recovery is not verified"));
-+        let check = 0;
++        await step.run(`wait-status-${cycle}`, () =>
++          setRun(
++            runId,
++            'waiting',
++            decision.action === 'wait' ? decision.reason : 'Recovery is not verified',
++          ),
+         )
+-        return
++        let check = 0
 +        while (true) {
-+          const latest = await step.run(`read-event-sequence-${cycle}-${check}`, () => getRun(runId));
-+          if (["cancelled", "superseded", "failed"].includes(latest.status)) return;
-+          if (latest.eventSequence > state.eventSequence) break;
-+          check++;
++          const latest = await step.run(`read-event-sequence-${cycle}-${check}`, () =>
++            getRun(runId),
++          )
++          if (['cancelled', 'superseded', 'failed'].includes(latest.status)) return
++          if (latest.eventSequence > state.eventSequence) break
++          check++
 +          await step.waitForEvent(`wait-for-service-${cycle}-${check}`, {
-+            event: "incident/updated",
++            event: 'incident/updated',
 +            if: `async.data.runId == "${runId}"`,
-+            timeout: "10s",
-+          });
++            timeout: '10s',
++          })
 +          // The timeout also reconciles an event that arrived just before the wait.
 +        }
-+        continue;
++        continue
        }
-       if (decision.action === "complete") {
-         const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
+       if (decision.action === 'complete') {
+         const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state))
 ```
 
-Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
+Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
