@@ -1,6 +1,6 @@
 # 06 · Ask for help and hand off
 
-Start: `lesson-6` · Finished solution: `complete`
+Start: `lesson-6` · Finished solution: `main`
 
 **Outcome:** The agent can ask a person a question, resume the same incident, and wait for independent recovery evidence.
 
@@ -88,7 +88,7 @@ Evaluate outcome, trajectory, and human boundary for feature, release, dependenc
 
 ## Catch up
 
-Your solution is `complete`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 6 progress"`, then `git switch complete`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.
+Your solution is `main`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 6 progress"`, then `git switch main`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.
 
 **Common mistake:** A human answer is new context, not evidence of recovery. The model can ask for help, but the harness owns the inbox request and resumption.
 
