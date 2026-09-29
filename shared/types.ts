@@ -1,23 +1,14 @@
-export const SCENARIOS = ["feature-rollout", "faulty-release", "upstream-outage"] as const;
-export type Scenario = (typeof SCENARIOS)[number];
-
-export const EVENT_TYPES = ["health", "log", "deployment", "dependency"] as const;
-export type EventType = (typeof EVENT_TYPES)[number];
-
-export const ACTIONS = ["inspect_logs", "inspect_changes", "disable_feature", "rollback_release", "request_help", "complete"] as const;
+export const ACTIONS = ["inspect_logs", "inspect_changes", "disable_feature", "rollback_release", "request_help", "complete", "defer"] as const;
 export type ActionName = (typeof ACTIONS)[number];
 
-export type LabSnapshot = {
+export type WorldState = Record<string, unknown>;
+export type GoalCondition = { path: string; equals: string | number | boolean } | null;
+
+export type EnvironmentSnapshot = {
   id: string;
-  scenario: Scenario;
-  running: boolean;
-  rate: number;
-  eventTypes: EventType[];
+  state: WorldState;
+  version: number;
+  goal: string;
+  goalCondition: GoalCondition;
   failNextAction: boolean;
-  featureEnabled: boolean;
-  release: string;
-  upstreamHealthy: boolean;
-  healthy: boolean;
-  errorRate: number;
-  lastObservationAt: string | null;
 };
