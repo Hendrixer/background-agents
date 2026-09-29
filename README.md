@@ -37,10 +37,17 @@ Do not commit `.env`. An unclaimed Neon database is temporary; claim it or make 
 npm run db:push
 npm run preflight
 npm run db:seed
-npm run dev
 ```
 
-In another terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. Every agent run uses the configured OpenAI model. The agent startup line names the model, and http://127.0.0.1:3002/api/health reports it so you can check before teaching.
+Keep these commands running in **three separate terminals**:
+
+| Terminal | Command | What stays up |
+| --- | --- | --- |
+| 1 | `npm run dev:agent` | Agent endpoint; stop only this terminal for the durable-restart lesson |
+| 2 | `npm run dev` | Operator API, dashboard, and Inngest Dev Server |
+| 3 | `npm run dev:checkout` | Healthy checkout service; stop only this terminal to change faults |
+
+In a fourth terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. Every agent run uses the configured OpenAI model. The agent startup line names the model, and http://127.0.0.1:3002/api/health reports it so you can check before teaching.
 
 | Process | Command | Address |
 | --- | --- | --- |
@@ -50,7 +57,7 @@ In another terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:
 | Operator UI | `npm run dev:web` | 127.0.0.1:5173 |
 | Inngest Dev Server | `npm run dev:inngest` | 127.0.0.1:8288 |
 
-`npm run dev` starts all five, with a healthy checkout by default. For a fault drill, stop the checkout process and start it with flags while keeping the other four processes alive:
+For a fault drill, press Ctrl-C in **terminal 3 only**, then run one of these commands in that same terminal. Leave terminals 1 and 2 running:
 
 ```bash
 npm run dev:checkout -- --fault feature --alerts 3 --interval-ms 1000
@@ -60,7 +67,7 @@ npm run dev:checkout -- --fault feature --lose-next-action-response
 npm run dev:checkout -- --fault none
 ```
 
-Run **one checkout process at a time**. `--fault` accepts `none`, `feature`, `release`, or `dependency`; each start resets state and creates a new instance. `--alerts` sets how many alert events to emit, and `--interval-ms` sets their spacing. `--recover-after-ms 0` leaves a dependency degraded until restart. The lost-response flag commits the first mutating operation and replies 503 once, exposing the side-effect/acknowledgement gap. For the agent restart exercise, restart only `dev:agent`; keep Inngest and checkout running.
+Run **one checkout process at a time**. `--fault` accepts `none`, `feature`, `release`, or `dependency`; each start resets state and creates a new instance. `--alerts` sets how many alert events to emit, and `--interval-ms` sets their spacing. `--recover-after-ms 0` leaves a dependency degraded until restart. The lost-response flag commits the first mutating operation and replies 503 once, exposing the side-effect/acknowledgement gap. For the agent restart exercise, press Ctrl-C in terminal 1 and run `npm run dev:agent` there again; leave terminals 2 and 3 running.
 
 The UI has three routes: `/` for human requests, `/activity` for incident runs and their saved activity, and `/events` for service events and current checkout state. There is no simulator admin page. The checkout process is a small, inspectable synthetic service; the agent and operator API do not know which startup fault flag created its state.
 
