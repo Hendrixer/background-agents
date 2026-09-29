@@ -24,7 +24,7 @@ Our tool list is deliberately small. `inspect_logs` and `inspect_changes` gather
 
 ## See it in the lab
 
-Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: an event is present, and the run lacks a useful trajectory.
+Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: the event is present, and the run stops as `escalated` with `Harness not implemented yet`. That is the starter state, not a stuck agent.
 
 ## Live coding
 
@@ -34,9 +34,10 @@ These code blocks show the exact changes between the start and solution branches
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Replace the placeholder function. The alert intake and checkout API are supplied.
+Replace the placeholder function and remove its temporary `escalated` status. The alert intake and checkout API are supplied.
 
 ```diff
+-import { setRun } from './agent-data'
 +import { randomUUID } from 'node:crypto'
 +import {
 +  agentState,
@@ -55,6 +56,7 @@ Replace the placeholder function. The alert intake and checkout API are supplied
  export const incidentAgent = inngest.createFunction(
    { id: 'incident-agent', name: 'Checkout incident agent', triggers: { event: 'incident/opened' } },
 -  async ({ event }) => {
+-    await setRun(event.data.runId, 'escalated', 'Harness not implemented yet')
 -    return { runId: event.data.runId, next: 'Build the observe–decide–act loop' }
 +  async ({ event, step }) => {
 +    const { environmentId, runId } = event.data

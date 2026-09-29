@@ -6,7 +6,7 @@
       "start": "lesson-1",
       "solution": "lesson-2",
       "promise": "A checkout alert opens an incident, and a bounded harness observes, chooses, acts, and verifies the goal.",
-      "opening": "Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: an event is present, and the run lacks a useful trajectory.",
+      "opening": "Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: the event is present, and the run stops as `escalated` with `Harness not implemented yet`. That is the starter state, not a stuck agent.",
       "edit": "Replace the placeholder function in `server/agent-workflow.ts` with the first observe–decide–act loop. The checkout API, event intake, database access, model choice, and operator UI are supplied. This first version deliberately puts the whole loop inside one Inngest step.",
       "verify": "Restart checkout with `--fault feature`. The model may inspect logs, changes, or both; the run should disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.",
       "experiment": "Compare the alert payload with the body returned by the checkout `/state` endpoint. Why should the agent read the latter? Restart checkout healthy and confirm that `service.started` does not open an incident.",
@@ -87,7 +87,7 @@
   ],
   "editCues": {
     "1": [
-      "Replace the placeholder function. The alert intake and checkout API are supplied."
+      "Replace the placeholder function and remove its temporary `escalated` status. The alert intake and checkout API are supplied."
     ],
     "2": [
       "Replace the whole-loop checkpoint with named steps; keep unique cycle suffixes."
