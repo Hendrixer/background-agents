@@ -2,7 +2,7 @@
 
 Start: `lesson-4` · Finished solution: `lesson-5`
 
-**Outcome:** A disruptive action becomes a persisted request that pauses and resumes the same run.
+**Outcome:** A release rollback becomes a persisted inbox proposal and a durable human decision.
 
 ## The engineering idea
 
@@ -34,21 +34,22 @@ Human availability is another design constraint. What happens when the person is
 
 ## See it in the lab
 
-Load the Faulty release shortcut, save its state, and emit a deployment event. On this branch the rollback is not yet gated. We will move the authority boundary: the model may propose rollback, but a person must authorize the exact action against the observed state version.
+Start checkout with `--fault release`. The agent finds a likely bad deployment but currently escalates instead of rolling back. A person should see the exact proposed action and expected service version in the inbox.
 
 ## Live coding
 
-In server/agent-workflow.ts, import the supplied proposal helpers and insert the approval gate after actionId and policy are computed. Keep the execute-action step below the gate so an unapproved rollback cannot reach it.
+Replace the temporary approval branch in `server/agent-workflow.ts`. Persist the proposal, wait for a correlated decision, reread it after wake, and re-observe checkout before acting. Keep the operations API's own version check as the final precondition.
 
-These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
+These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Import the supplied proposal and decision helpers.
+Import the supplied proposal helpers.
 
 ```diff
--import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun, startRun } from "./agent-data";
-+import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal, startRun } from "./agent-data";
+ import { randomUUID } from "node:crypto";
+-import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
++import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, recordToolAction, setIteration, setRun, staleProposal } from "./agent-data";
  import { chooseAction, writeReport } from "./agent-brain";
  import { inngest } from "./inngest";
  import { logAgentActivity } from "./agent-log";
@@ -56,27 +57,26 @@ Import the supplied proposal and decision helpers.
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-Insert the approval gate between the action choice and the execute-action step. A human reply resumes this run.
+Replace the temporary approval escalation with a persisted proposal, durable decision wait, and fresh-state recheck.
 
 ```diff
-       }
-       const actionId = `${runId}:${cycle}:${decision.action}`;
+       const actionId = randomUUID();
        const policy = actionPolicy[decision.action];
-+      if (policy === "approval") {
+       if (policy === "approval") {
+-        await step.run("approval-unavailable-" + cycle, () => setRun(runId, "escalated", "Approval gate is not built yet"));
+-        return;
 +        const input = { expectedVersion: state.world.version };
 +        const proposalId = await step.run(`propose-action-${cycle}`, async () => {
 +          const proposal = await proposeAction(environmentId, runId, actionId, decision.action, input);
 +          return proposal.id;
 +        });
-+
-+        let proposal = await step.run(`read-approval-${cycle}`, () => getProposal(proposalId));
++        let proposal = await step.run(`read-human-${cycle}`, () => getProposal(proposalId));
 +        let check = 0;
 +        while (proposal.status === "pending") {
 +          check++;
 +          await step.waitForEvent(`wait-for-human-${cycle}-${check}`, {
 +            event: "agent/approval.decided",
-+            if: `async.data.proposalId == "${proposalId}"`,
-+            timeout: "10s",
++            if: `async.data.proposalId == "${proposalId}"`, timeout: "10s",
 +          });
 +          proposal = await step.run(`reconcile-human-${cycle}-${check}`, () => getProposal(proposalId));
 +        }
@@ -87,34 +87,31 @@ Insert the approval gate between the action choice and the execute-action step. 
 +        const fresh = await step.run(`recheck-approved-state-${cycle}`, () => agentState(environmentId, runId));
 +        if (fresh.world.version !== input.expectedVersion) {
 +          await step.run(`invalidate-approval-${cycle}`, () => staleProposal(proposalId));
-+          await step.run(`defer-stale-${cycle}`, () => setRun(runId, "deferred", "State changed; a new event can start a new run"));
-+          return;
++          continue;
 +        }
-+      }
-+
-       const result = await step.run(`execute-action-${cycle}`, () =>
-         executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
-       if (result.stale === true) {
+       }
+
+       const result = await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
 ```
 
 Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
-With Faulty release, emit one event. The run should pause in needs approval without changing the release. Approve from the inbox; the same run resumes and rolls back. It then defers until the simulator saves healthy state and emits a new event. Repeat with Deny to see escalation.
+Start a release fault and approve rollback in the inbox. The same incident should resume, roll back, observe healthy state, and complete. Repeat with Deny; the run should escalate without changing the release.
 
 ## Break it on purpose
 
-Stop only dev:agent while a proposal is pending, answer in the inbox, and restart it. Then repeat but change the state version before approving. The original approval must become stale rather than authorizing an action against new state.
+Leave an approval pending, restart only `dev:agent`, then decide. Restart checkout instead and confirm the old proposal becomes stale. Why are these restarts different?
 
 ## Engineering challenge
 
-Treat approval as a capability. Define subject, action, expected state, expiry, and audit record. What should happen if the request expires while the operator is away? Design an inbox item that lets someone decide without reading the full trace.
+Define an approval as a scoped capability: subject, run, action, state precondition, expiry, and audit record. Identify what the operator should see before approving.
 
 ## Catch up
 
-Your solution is `lesson-5`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 4 progress"`, then `git switch lesson-5`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
+Your solution is `lesson-5`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 4 progress"`, then `git switch lesson-5`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.
 
-**Common mistake:** A human reply resumes the existing run; a service event starts another run. The approval is scoped to one proposed action and one observed version, not a standing permission.
+**Common mistake:** The model selects `rollback_release`; the harness turns it into a request. Approval for version 1 is not a blanket permission for a later version.
 
-**Optional extension:** Add a second action that needs approval, and state what evidence its inbox item should include.
+**Optional extension:** Improve the inbox decision packet with evidence and an impact estimate, without exposing untrusted log text as instruction.
