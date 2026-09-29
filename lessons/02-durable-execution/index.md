@@ -2,7 +2,7 @@
 
 Start: `lesson-2` · Finished solution: `lesson-3`
 
-**Outcome:** Each costly or effectful operation becomes a named Inngest step whose result survives a process restart.
+**Outcome:** Model choices, observations, effects, and reports become named Inngest checkpoints.
 
 ## The engineering idea
 
@@ -26,7 +26,7 @@ Think carefully about the model call. If `chooseAction` ran again after a restar
 
 ### Two clocks, two stores
 
-PostgreSQL holds the current incident, approval, and run status. Inngest holds completed workflow steps. A checkpointed `observe-state-3` is evidence of what the agent saw during cycle 3; it is not a promise that checkout still looks that way in cycle 4. We create a new observation step for each cycle precisely because the world is mutable. The database and workflow history answer different questions: **What is true now?** and **What did this run already do?**
+PostgreSQL holds the current service state, approval, and run status. Inngest holds completed workflow steps. A checkpointed `observe-state-3` is evidence of what the agent saw during cycle 3; it is not a promise that checkout still looks that way in cycle 4. We create a new observation step for each cycle precisely because the world is mutable. The database and workflow history answer different questions: **What is true now?** and **What did this run already do?**
 
 There is a tradeoff in where we put step boundaries. One step around the entire loop hides partial progress and can repeat many operations. A step around every tiny pure calculation makes the trace noisy and increases history without adding recoverability. I checkpoint calls whose results matter after a crash: reading current state, choosing an action, executing an effect, and writing a report. The status writes are visible in the trace because they explain what a person sees while the agent works. I would revisit that granularity with actual traces, not by adding steps everywhere by habit.
 
@@ -36,93 +36,105 @@ Anthropic's [long-running harness work](https://www.anthropic.com/engineering/ef
 
 ## See it in the lab
 
-Open the `whole-agent-loop` trace from lesson 1, then reset **Feature rollout** on `/admin`. The service may have changed during the step, but the trace contains one result for the entire loop. We will make each expensive decision and external effect visible as its own checkpoint.
+Run a degraded Feature rollout event and inspect the one whole-agent-loop trace. It hides the distinction between a model choice and a committed tool effect. We will split those operations into named steps and replace the in-process timer with a durable sleep.
 
 ## Live coding
 
-In `server/agent-workflow.ts`, replace the single opaque `step.run("whole-agent-loop")` with the shown loop. The helper and function options remain. This is one larger refactor; typecheck after the whole block is in place.
+In server/agent-workflow.ts, add the concurrency comment, then replace the whole handler after the run is loaded. Keep each repeated step ID tied to its cycle number. Make the replacement as one edit, then typecheck.
 
 These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Lift the loop out of `whole-agent-loop` so Inngest can checkpoint its meaningful operations separately. Notice the unique `${cycle}` suffix on every repeated step ID. Replace this handler as one edit, then typecheck.
+Keep the concurrency setting; this comment makes its step-level scope explicit.
 
 ```diff
-   async ({ event, step }) => {
-     const { labId, runId } = event.data;
-     const run = await getRun(runId);
-+    if (["completed", "failed", "cancelled", "escalated"].includes(run.status)) return;
- 
+     name: "Event-triggered background agent",
+     triggers: { event: "service/event.received" },
+     retries: 2,
++    // Separate events create separate runs. Only one step per environment executes
++    // at a time; a waiting human approval does not block later runs.
+     concurrency: { limit: 1, key: "event.data.environmentId" },
+     onFailure: async ({ error, event }) => {
+       const original = event.data.event as { data?: { eventId?: string } };
+```
+
+### Edit 2 · `server/agent-workflow.ts`
+
+Replace the opaque whole-agent-loop block with named steps. A unique cycle suffix prevents step-ID collisions.
+
+```diff
+     const { environmentId, eventId, type, payload } = event.data;
+     const run = await startRun(environmentId, eventId, type, payload);
+     const runId = run.id;
 -    return step.run("whole-agent-loop", async () => {
--      for (let iteration = 1; iteration <= 12; iteration++) {
--        const currentLab = await activeLab();
--        if (currentLab?.id !== labId) {
--          await setRun(runId, "cancelled", "Scenario was reset");
--          return;
--        }
-+    let decisions = 0;
-+    let cycle = 0;
-+    while (decisions < 12) {
-+      cycle += 1;
-+      const currentLab = await activeLab();
-+      if (currentLab?.id !== labId) {
-+        await step.run(`scenario-reset-${cycle}`, () => setRun(runId, "cancelled", "Scenario was reset"));
-+        return;
-+      }
-+
-+      const state = await step.run(`observe-state-${cycle}`, () => agentState(labId, runId));
- 
--        const state = await agentState(labId, runId);
--        if (state.service.healthy && state.observations.length > 0) {
+-      for (let cycle = 1; cycle <= 8; cycle++) {
+-        const state = await agentState(environmentId, runId);
+-        if (goalSatisfied(state, run.goalCondition)) {
 -          const report = await writeReport(run.goal, state);
 -          await setRun(runId, "completed", null, report);
 -          return { report };
 -        }
-+      if (state.service.healthy && state.observations.length > 0) {
+-        const decision = await chooseAction(run.goal, state);
+-        await setIteration(runId, cycle);
+-        await recordDecision(environmentId, runId, cycle, decision.action, decision.reason);
+-        if (decision.action === "defer") {
+-          await setRun(runId, "deferred", decision.reason);
+-          return;
+-        }
+-        if (decision.action === "complete") {
+-          if (run.goalCondition) {
+-            await setRun(runId, "deferred", "Configured goal condition is not satisfied");
+-            return;
+-          }
+-          const report = await writeReport(run.goal, state);
+-          await setRun(runId, "completed", null, report);
+-          return { report };
+-        }
+-        if (decision.action === "request_help") {
+-          await setRun(runId, "escalated", "Help requests are added in lesson 6");
++    if (["completed", "failed", "cancelled", "escalated", "deferred"].includes(run.status)) return;
++
++    for (let cycle = 1; cycle <= 8; cycle++) {
++      const state = await step.run(`observe-state-${cycle}`, () => agentState(environmentId, runId));
++
++      if (goalSatisfied(state, run.goalCondition)) {
 +        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
 +        await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
 +        return { report };
 +      }
- 
--        if (state.observations.length === 0) {
--          await setRun(runId, "waiting", "Waiting for the first health observation");
--          await new Promise((resolve) => setTimeout(resolve, 1000));
--          continue;
--        }
-+      if (state.service.healthy || state.observations.length === 0) {
-+        await step.run(`wait-status-${cycle}`, () => setRun(runId, "waiting", "Waiting for fresh health observations"));
-+        await step.sleep(`poll-for-health-${cycle}`, "2s");
-+        continue;
-+      }
- 
--        const decision = await chooseAction(run.goal, state);
--        await setIteration(runId, iteration);
--        await recordDecision(labId, runId, iteration, decision.action, decision.reason);
--        if (decision.action === "complete") {
--          await addTimeline(labId, "policy", "Completion rejected: service is not healthy", {}, runId);
--          continue;
--        }
++
 +      const decision = await step.run(`choose-action-${cycle}`, () => chooseAction(run.goal, state));
-+      decisions += 1;
-+      const iteration = decisions;
-+      await step.run(`set-iteration-${cycle}`, () => setIteration(runId, iteration));
-+      await step.run(`record-decision-${cycle}`, () => recordDecision(labId, runId, iteration, decision.action, decision.reason));
- 
--        await executeAction(labId, `${runId}:${iteration}:${decision.action}`, decision.action);
--        await new Promise((resolve) => setTimeout(resolve, 1000));
++      await step.run(`set-iteration-${cycle}`, () => setIteration(runId, cycle));
++      await step.run(`record-decision-${cycle}`, () => recordDecision(environmentId, runId, cycle, decision.action, decision.reason));
++
++      if (decision.action === "defer") {
++        await step.run(`defer-run-${cycle}`, () => setRun(runId, "deferred", decision.reason));
++        return;
++      }
 +      if (decision.action === "complete") {
-+        await step.run(`reject-early-completion-${cycle}`, () => addTimeline(labId, "policy", "Completion rejected: recovery is not verified", {}, runId));
-+        await step.sleep(`poll-after-early-completion-${cycle}`, "2s");
-+        continue;
++        if (run.goalCondition) {
++          await step.run(`reject-completion-${cycle}`, () => logAgentActivity(environmentId, runId, "human", "Completion blocked by configured goal condition", { condition: run.goalCondition }));
++          await step.run(`defer-unverified-${cycle}`, () => setRun(runId, "deferred", "Configured goal condition is not satisfied"));
+           return;
+         }
+-        await executeAction(environmentId, runId, `${runId}:${cycle}:${decision.action}`, decision.action);
+-        await new Promise((resolve) => setTimeout(resolve, 1000));
++        const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
++        await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
++        return { report };
        }
 -      await setRun(runId, "escalated", "Decision limit reached");
 -    });
 +
-+      const actionId = `${runId}:${iteration}:${decision.action}`;
-+      await step.run(`execute-action-${cycle}`, () => executeAction(labId, actionId, decision.action));
-+      await step.run(`wait-status-after-action-${cycle}`, () => setRun(runId, "waiting", "Waiting for the service to report its new state"));
-+      await step.sleep(`poll-after-action-${cycle}`, "2s");
++      if (decision.action === "request_help") {
++        await step.run(`help-not-implemented-${cycle}`, () => setRun(runId, "escalated", "Help requests are added in lesson 6"));
++        return;
++      }
++      const actionId = `${runId}:${cycle}:${decision.action}`;
++      await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action));
++      await step.run(`settle-status-${cycle}`, () => setRun(runId, "waiting", "Waiting briefly before observing tool effects"));
++      await step.sleep(`settle-${cycle}`, "2s");
 +    }
 +
 +    await step.run("stop-at-limit", () => setRun(runId, "escalated", "Decision limit reached"));
@@ -134,20 +146,20 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Start the Feature rollout run from `/admin`, send 12 health events one second apart, and inspect the Inngest trace. You should see `observe-state-*`, `choose-action-*`, `execute-action-*`, and named sleeps as separate steps. Restart only the agent endpoint while the run sleeps; the lab and Inngest Dev Server stay up.
+Send a Feature rollout event. Inngest should show observe-state, choose-action, execute-action, and settle steps rather than one opaque loop. Restart only dev:agent during a two-second settle sleep and confirm the run resumes without repeating completed step callbacks.
 
 ## Break it on purpose
 
-If you started everything with `npm run dev`, stop that combined command first and restart `npm run dev:lab`, `npm run dev:web`, `npm run dev:inngest`, and `npm run dev:agent` in separate terminals. While a run sleeps, restart only the agent terminal. Identify which step outputs came from history and which callback actually ran. Keep the local Inngest Dev Server running throughout this experiment.
+Contrast a successful step result with the database's latest state. What did the run observe then, and what is true now? Deliberately stop the agent endpoint during sleep while keeping Inngest and the simulator running.
 
 ## Engineering challenge
 
-Make a crash-window table for three points: after the model chooses an action, after the operations API commits but before it replies, and after Inngest records the step result. For each point, state what replay knows, what it may repeat, and which system has the authority to deduplicate the effect. Then imagine deploying a changed `choose-action-*` step while a run waits. Would you reuse the step ID or deliberately change it, and why?
+Build a crash-window table for before the model choice is saved, after a tool commits but before its response arrives, and after the step result is saved. For each window, say what replay knows and what might repeat. Explain why durable execution alone cannot guarantee exactly one external effect.
 
 ## Catch up
 
-Your solution is `lesson-3`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 2 progress"`, then `git switch lesson-3`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.
+Your solution is `lesson-3`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 2 progress"`, then `git switch lesson-3`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
 
-**Common mistake:** Do not restart the Inngest Dev Server for this demo. If “duplicate step ID” appears, check that the ID contains `cycle`; repeated static IDs inside a loop are ambiguous.
+**Common mistake:** Do not restart the Inngest Dev Server for this local durability demo; its history is in memory. Reused static step IDs inside a loop make replay ambiguous.
 
-**Optional extension:** Add one more read-only inspection action and decide whether its result belongs inside its own step.
+**Optional extension:** Choose one step whose result need not be checkpointed and justify removing it.
