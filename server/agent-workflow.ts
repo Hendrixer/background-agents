@@ -1,49 +1,16 @@
-import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun, startRun } from "./agent-data";
+import { randomUUID } from "node:crypto";
+import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
-import { logAgentActivity } from "./agent-log";
-import type { ActionName } from "../shared/types";
-
-async function executeAction(environmentId: string, runId: string, actionId: string, name: ActionName) {
-  await logAgentActivity(environmentId, runId, "act", `Calling ${name.replaceAll("_", " ")}`, { actionId });
-  try {
-    const response = await fetch("http://127.0.0.1:3001/api/ops/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentId, actionId, name }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `Tool failed: ${response.status}`);
-    await logAgentActivity(environmentId, runId, "act", `${name.replaceAll("_", " ")} returned successfully`, { actionId, result });
-    return result;
-  } catch (error) {
-    await logAgentActivity(environmentId, runId, "act", `${name.replaceAll("_", " ")} attempt failed`, {
-      actionId, error: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
-  }
-}
+import { checkoutServiceUrl } from "./observe";
 
 export const incidentAgent = inngest.createFunction(
-  {
-    id: "incident-agent",
-    name: "Event-triggered background agent",
-    triggers: { event: "service/event.received" },
-    retries: 2,
-    concurrency: { limit: 1, key: "event.data.environmentId" },
-    onFailure: async ({ error, event }) => {
-      const original = event.data.event as { data?: { eventId?: string } };
-      if (original.data?.eventId) {
-        try { await setRun(original.data.eventId, "failed", error.message); }
-        catch { console.error("Agent failed before its run could be recorded", error); }
-      }
-    },
-  },
+  { id: "incident-agent", name: "Checkout incident agent", triggers: { event: "incident/opened" } },
   async ({ event, step }) => {
-    const { environmentId, eventId, type, payload } = event.data;
-    const run = await startRun(environmentId, eventId, type, payload);
-    const runId = run.id;
+    const { environmentId, runId } = event.data;
+    // One opaque checkpoint proves the loop, but hides where each effect happened.
     return step.run("whole-agent-loop", async () => {
+      const run = await getRun(runId);
       for (let cycle = 1; cycle <= 8; cycle++) {
         const state = await agentState(environmentId, runId);
         if (goalSatisfied(state, run.goalCondition)) {
@@ -54,25 +21,22 @@ export const incidentAgent = inngest.createFunction(
         const decision = await chooseAction(run.goal, state);
         await setIteration(runId, cycle);
         await recordDecision(environmentId, runId, cycle, decision.action, decision.reason);
-        if (decision.action === "defer") {
-          await setRun(runId, "deferred", decision.reason);
+        if (decision.action === "wait" || decision.action === "complete" || decision.action === "request_help") {
+          await setRun(runId, "escalated", "This first loop cannot pause yet");
           return;
         }
-        if (decision.action === "complete") {
-          if (run.goalCondition) {
-            await setRun(runId, "deferred", "Configured goal condition is not satisfied");
-            return;
-          }
-          const report = await writeReport(run.goal, state);
-          await setRun(runId, "completed", null, report);
-          return { report };
-        }
-        if (decision.action === "request_help") {
-          await setRun(runId, "escalated", "Help requests are added in lesson 6");
+        if (decision.action === "rollback_release") {
+          await setRun(runId, "escalated", "Approval gate is not built yet");
           return;
         }
-        await executeAction(environmentId, runId, `${runId}:${cycle}:${decision.action}`, decision.action);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const actionId = randomUUID();
+        const response = await fetch(checkoutServiceUrl + "/operations", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actionId, name: decision.action, expectedVersion: state.world.version }),
+        });
+        const result = await response.json() as Record<string, unknown>;
+        if (!response.ok) throw new Error(String(result.error ?? response.status));
+        if (result.stale !== true) await recordToolAction(environmentId, runId, actionId, decision.action, { expectedVersion: state.world.version }, result);
       }
       await setRun(runId, "escalated", "Decision limit reached");
     });
