@@ -6,7 +6,7 @@ Start: `lesson-6` · Finished solution: `main`
 
 ## The engineering idea
 
-The dependency outage is the incident our local tools cannot fix. Disabling our feature or rolling back our release will not repair a payment gateway. A useful background agent should recognize that limit and reach a person with a specific question. The inbox is where unattended work returns to me, not just an approval queue.
+The dependency outage is the incident our local tools cannot fix. Disabling our feature or rolling back our release will not repair a payment gateway. In the prior checkpoint, a help request falls back to waiting for a service event because the inbox path does not exist yet. A useful background agent should recognize the limit and reach a person with a specific question. The inbox is where unattended work returns to me, not just an approval queue.
 
 `request_help` is a model-selected next action. The harness persists a question and waits for a correlated answer. The answer resumes **the same incident run** and becomes part of the next bounded context view. It is not evidence that checkout recovered. If the dependency remains down, the agent can choose `wait`; a later `health.recovered` event wakes that run, and a fresh observation checks the goal. [Inngest's human-in-the-loop guidance](https://www.inngest.com/docs/ai-patterns/human-in-the-loop) shows the durable propose–wait–resume pattern.
 
@@ -22,28 +22,69 @@ If the model picks a bad action, ask whether the problem was evidence, tool desi
 
 ## See it in the lab
 
-Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint escalates on `request_help`; we will let the agent reach a person and keep the incident alive.
+Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint can wait for spontaneous recovery, but it cannot reach a person when the model selects `request_help`. We will add that inbox path without ending the incident.
 
 ## Live coding
 
-In `server/agent-workflow.ts`, remove the temporary help escalation. Reuse the persisted proposal and durable wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.
+In `server/agent-workflow.ts`, remove the temporary help fallback to service-event waiting. Reuse the persisted proposal and durable human-decision wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.
 
 These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Remove the temporary help escalation.
+Remove `request_help` from the service-event wait condition so it can reach the inbox path below.
 
 ```diff
-         return { report }
-       }
+         recordDecision(environmentId, runId, cycle, decision.action, decision.reason),
+       )
 
--      if (decision.action === 'request_help') {
--        await step.run(`help-unavailable-${cycle}`, () =>
--          setRun(runId, 'escalated', 'Human help path is not built yet'),
--        )
--        return
--      }
+-      if (
+-        decision.action === 'wait' ||
+-        decision.action === 'request_help' ||
+-        (decision.action === 'complete' && run.goalCondition)
+-      ) {
++      if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
+         if (decision.action === 'complete') {
+           await step.run(`reject-completion-${cycle}`, () =>
+             logAgentActivity(
+```
+
+### Edit 2 · `server/agent-workflow.ts`
+
+Remove the temporary log and wait reason that said human help was unavailable.
+
+```diff
+             ),
+           )
+         }
+-        if (decision.action === 'request_help') {
+-          await step.run(`defer-help-${cycle}`, () =>
+-            logAgentActivity(environmentId, runId, 'human', 'Help is not available yet', {
+-              question: decision.detail,
+-            }),
+-          )
+-        }
+         await step.run(`wait-status-${cycle}`, () =>
+           setRun(
+             runId,
+             'waiting',
+-            decision.action === 'request_help'
+-              ? 'Help is not available yet; waiting for fresh service evidence'
+-              : decision.action === 'wait'
+-                ? decision.reason
+-                : 'Recovery is not verified',
++            decision.action === 'wait' ? decision.reason : 'Recovery is not verified',
+           ),
+         )
+         let check = 0
+```
+
+### Edit 3 · `server/agent-workflow.ts`
+
+Let help use a persisted proposal and correlated human-decision wait, with its question as input.
+
+```diff
+
        const actionId = `${runId}:${cycle}:${decision.action}`
        const policy = actionPolicy[decision.action]
 -      if (policy === 'approval') {
@@ -58,9 +99,9 @@ Remove the temporary help escalation.
              environmentId,
 ```
 
-### Edit 2 · `server/agent-workflow.ts`
+### Edit 4 · `server/agent-workflow.ts`
 
-Let help use the persisted proposal and wait, then continue with a new observation.
+After a human answer, continue to a fresh observation rather than executing a checkout operation.
 
 ```diff
            )
@@ -84,7 +125,7 @@ Answer the person but leave `--recover-after-ms 0`: the answer alone must not ma
 
 ## Engineering challenge
 
-Evaluate outcome, trajectory, and human boundary for feature, release, dependency, and lost-response runs. Which failure requires a policy or tool-contract change rather than a prompt change?
+Continue with the [capstone incident lab](/advanced-lab/). Evaluate outcome, trajectory, and human boundary for feature, release, dependency, and lost-response runs. Which failure requires a policy or tool-contract change rather than a prompt change?
 
 ## Catch up
 
