@@ -184,7 +184,7 @@ export const incidentAgent = inngest.createFunction(
       await step.run(`settle-status-${cycle}`, () =>
         setRun(runId, 'waiting', 'Waiting briefly before observing the effect'),
       )
-      await step.sleep(`settle-${cycle}`, '1s')
+      await step.sleep(`settle-${cycle}`, process.env.AGENT_SETTLE_DELAY ?? '1s')
     }
 
     await step.run('stop-at-limit', () => setRun(runId, 'escalated', 'Decision limit reached'))
