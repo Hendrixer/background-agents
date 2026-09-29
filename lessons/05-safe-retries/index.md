@@ -33,10 +33,10 @@ These code blocks show the exact changes between the start and solution branches
 Remove the attempt-local UUID import.
 
 ```diff
--import { randomUUID } from "node:crypto";
- import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, recordToolAction, setIteration, setRun, staleProposal } from "./agent-data";
- import { chooseAction, writeReport } from "./agent-brain";
- import { inngest } from "./inngest";
+-import { randomUUID } from 'node:crypto'
+ import {
+   agentState,
+   getProposal,
 ```
 
 ### Edit 2 · `server/agent-workflow.ts`
@@ -44,12 +44,12 @@ Remove the attempt-local UUID import.
 Add cancellation to the Inngest function options.
 
 ```diff
-     name: "Checkout incident agent",
-     triggers: { event: "incident/opened" },
+     name: 'Checkout incident agent',
+     triggers: { event: 'incident/opened' },
      retries: 2,
-+    cancelOn: [{ event: "agent/run.cancelled", match: "data.runId" }],
++    cancelOn: [{ event: 'agent/run.cancelled', match: 'data.runId' }],
      // This limits executing steps, not the number of waiting incidents.
-     concurrency: { limit: 1, key: "event.data.environmentId" },
+     concurrency: { limit: 1, key: 'event.data.environmentId' },
      onFailure: async ({ error, event }) => {
 ```
 
@@ -58,18 +58,18 @@ Add cancellation to the Inngest function options.
 Derive one stable ID from the run, decision cycle, and selected action.
 
 ```diff
-         await step.run(`help-unavailable-${cycle}`, () => setRun(runId, "escalated", "Human help path is not built yet"));
-         return;
+         )
+         return
        }
 -      // An attempt-local ID is intentionally unsafe when a response is lost.
--      const actionId = randomUUID();
-+      const actionId = `${runId}:${cycle}:${decision.action}`;
-       const policy = actionPolicy[decision.action];
-       if (policy === "approval") {
-         const input = { expectedVersion: state.world.version };
+-      const actionId = randomUUID()
++      const actionId = `${runId}:${cycle}:${decision.action}`
+       const policy = actionPolicy[decision.action]
+       if (policy === 'approval') {
+         const input = { expectedVersion: state.world.version }
 ```
 
-Run `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
+Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
 
 ## Verify
 
