@@ -1,20 +1,23 @@
-import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun, startRun } from "./agent-data";
+import { randomUUID } from "node:crypto";
+import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
 import { logAgentActivity } from "./agent-log";
+import { checkoutServiceUrl } from "./observe";
+import { actionPolicy } from "./tool-policy";
 import type { ActionName } from "../shared/types";
 
-async function executeAction(environmentId: string, runId: string, actionId: string, name: ActionName) {
-  await logAgentActivity(environmentId, runId, "act", `Calling ${name.replaceAll("_", " ")}`, { actionId });
+async function executeAction(environmentId: string, runId: string, actionId: string, name: ActionName, expectedVersion?: number) {
+  const input = expectedVersion === undefined ? {} : { expectedVersion };
+  await logAgentActivity(environmentId, runId, "act", `Calling ${name.replaceAll("_", " ")}`, { actionId, input });
   try {
-    const response = await fetch("http://127.0.0.1:3001/api/ops/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ environmentId, actionId, name }),
+    const response = await fetch(`${checkoutServiceUrl}/operations`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actionId, name, ...input }),
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `Tool failed: ${response.status}`);
-    await logAgentActivity(environmentId, runId, "act", `${name.replaceAll("_", " ")} returned successfully`, { actionId, result });
+    const result = await response.json() as Record<string, unknown>;
+    if (!response.ok) throw new Error(String(result.error || `Tool failed: ${response.status}`));
+    if (result.stale !== true) await recordToolAction(environmentId, runId, actionId, name, input, result);
     return result;
   } catch (error) {
     await logAgentActivity(environmentId, runId, "act", `${name.replaceAll("_", " ")} attempt failed`, {
@@ -27,27 +30,24 @@ async function executeAction(environmentId: string, runId: string, actionId: str
 export const incidentAgent = inngest.createFunction(
   {
     id: "incident-agent",
-    name: "Event-triggered background agent",
-    triggers: { event: "service/event.received" },
+    name: "Checkout incident agent",
+    triggers: { event: "incident/opened" },
     retries: 2,
-    // Separate events create separate runs. Only one step per environment executes
-    // at a time; a waiting human approval does not block later runs.
+    // This limits executing steps, not the number of waiting incidents.
     concurrency: { limit: 1, key: "event.data.environmentId" },
     onFailure: async ({ error, event }) => {
-      const original = event.data.event as { data?: { eventId?: string } };
-      if (original.data?.eventId) {
-        try { await setRun(original.data.eventId, "failed", error.message); }
-        catch { console.error("Agent failed before its run could be recorded", error); }
-      }
+      const original = event.data.event as { data?: { runId?: string } };
+      if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
     },
   },
   async ({ event, step }) => {
-    const { environmentId, eventId, type, payload } = event.data;
-    const run = await startRun(environmentId, eventId, type, payload);
-    const runId = run.id;
-    if (["completed", "failed", "cancelled", "escalated", "deferred"].includes(run.status)) return;
+    const { environmentId, runId, instanceId } = event.data;
+    const run = await getRun(runId);
+    if (run.instanceId !== instanceId || ["completed", "failed", "cancelled", "escalated", "superseded"].includes(run.status)) return;
 
-    for (let cycle = 1; cycle <= 8; cycle++) {
+    for (let cycle = 1; cycle <= 24; cycle++) {
+      const current = await getRun(runId);
+      if (["completed", "failed", "cancelled", "escalated", "superseded"].includes(current.status)) return;
       const state = await step.run(`observe-state-${cycle}`, () => agentState(environmentId, runId));
 
       if (goalSatisfied(state, run.goalCondition)) {
@@ -60,29 +60,35 @@ export const incidentAgent = inngest.createFunction(
       await step.run(`set-iteration-${cycle}`, () => setIteration(runId, cycle));
       await step.run(`record-decision-${cycle}`, () => recordDecision(environmentId, runId, cycle, decision.action, decision.reason));
 
-      if (decision.action === "defer") {
-        await step.run(`defer-run-${cycle}`, () => setRun(runId, "deferred", decision.reason));
+      if (decision.action === "wait" || (decision.action === "complete" && run.goalCondition)) {
+        await step.run("wait-unavailable-" + cycle, () => setRun(runId, "escalated", "Event wait is not built yet"));
         return;
       }
       if (decision.action === "complete") {
-        if (run.goalCondition) {
-          await step.run(`reject-completion-${cycle}`, () => logAgentActivity(environmentId, runId, "human", "Completion blocked by configured goal condition", { condition: run.goalCondition }));
-          await step.run(`defer-unverified-${cycle}`, () => setRun(runId, "deferred", "Configured goal condition is not satisfied"));
-          return;
-        }
         const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state));
         await step.run(`complete-run-${cycle}`, () => setRun(runId, "completed", null, report));
         return { report };
       }
 
       if (decision.action === "request_help") {
-        await step.run(`help-not-implemented-${cycle}`, () => setRun(runId, "escalated", "Help requests are added in lesson 6"));
+        await step.run(`help-unavailable-${cycle}`, () => setRun(runId, "escalated", "Human help path is not built yet"));
         return;
       }
-      const actionId = `${runId}:${cycle}:${decision.action}`;
-      await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action));
-      await step.run(`settle-status-${cycle}`, () => setRun(runId, "waiting", "Waiting briefly before observing tool effects"));
-      await step.sleep(`settle-${cycle}`, "2s");
+      // An attempt-local ID is intentionally unsafe when a response is lost.
+      const actionId = randomUUID();
+      const policy = actionPolicy[decision.action];
+      if (policy === "approval") {
+        await step.run("approval-unavailable-" + cycle, () => setRun(runId, "escalated", "Approval gate is not built yet"));
+        return;
+      }
+
+      const result = await step.run(`execute-action-${cycle}`, () => executeAction(environmentId, runId, actionId, decision.action, policy === "read" ? undefined : state.world.version));
+      if (result.stale === true) {
+        await step.run(`stale-action-${cycle}`, () => logAgentActivity(environmentId, runId, "act", "Action rejected because service state changed", result));
+        continue;
+      }
+      await step.run(`settle-status-${cycle}`, () => setRun(runId, "waiting", "Waiting briefly before observing the effect"));
+      await step.sleep(`settle-${cycle}`, "1s");
     }
 
     await step.run("stop-at-limit", () => setRun(runId, "escalated", "Decision limit reached"));
