@@ -47,8 +47,8 @@ These code blocks are the exact changes between the start and solution branches.
 Import the supplied proposal and decision helpers.
 
 ```diff
--import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun , startRun } from "./agent-data";
-+import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal , startRun } from "./agent-data";
+-import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun, startRun } from "./agent-data";
++import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal, startRun } from "./agent-data";
  import { chooseAction, writeReport } from "./agent-brain";
  import { inngest } from "./inngest";
  import { logAgentActivity } from "./agent-log";
