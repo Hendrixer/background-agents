@@ -1,4 +1,4 @@
-import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun } from "./agent-data";
+import { agentState, getRun, goalSatisfied, recordDecision, setIteration, setRun , startRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
 import { logAgentActivity } from "./agent-log";
@@ -32,11 +32,16 @@ export const incidentAgent = inngest.createFunction(
     retries: 2,
     concurrency: { limit: 1, key: "event.data.environmentId" },
     onFailure: async ({ error, event }) => {
-      const original = event.data.event as { data?: { runId?: string } };
-      if (original.data?.runId) await setRun(original.data.runId, "failed", error.message);
+      const original = event.data.event as { data?: { eventId?: string } };
+      if (original.data?.eventId) {
+        try { await setRun(original.data.eventId, "failed", error.message); }
+        catch { console.error("Agent failed before its run could be recorded", error); }
+      }
     },
   },
   async ({ event }) => {
-    await setRun(event.data.runId, "waiting", "Build the agent loop in lesson 1");
+    const { environmentId, eventId, type, payload } = event.data;
+    const run = await startRun(environmentId, eventId, type, payload);
+    await setRun(run.id, "waiting", "Build the agent loop in lesson 1");
   },
 );
