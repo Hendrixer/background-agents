@@ -6,13 +6,14 @@ A one-day Node.js workshop on event-triggered background agents. Students build 
 
 ```text
 Simulator: save state ──> PostgreSQL
-Simulator: emit event ──> one Inngest run
-Agent run: read latest state ──> decide ──> policy ──> tool or human pause
+Simulator: publish service event ──> Inngest
+Agent event handler: record event + create run ──> read latest state
+Agent run: decide ──> policy ──> tool or human pause
 Human reply ──> resumes that same run
 Later service event ──> starts another run
 ```
 
-The event payload is a signal, not the state the agent trusts. Saving state alone starts no run. Every emitted event starts a separate run with a copy of the standing goal and optional completion condition. The harness has no knowledge of simulator presets. Presets only fill the admin form.
+The event payload is a signal, not the state the agent trusts. Saving state alone starts no run. The agent handler creates a separate run for every emitted event and copies the standing goal and optional completion condition at that point. The harness has no knowledge of simulator presets or event source. Presets only fill the admin form. A real producer can publish the same event shape.
 
 The optional completion condition is a field path and expected value, such as `health.status = healthy`. The harness evaluates it against the latest saved state. Without one, the model may propose the terminal `complete` action. The `defer` action ends a run when no further local action is justified; a future event starts a new run. Human approval and help responses use a durable Inngest wait and resume the existing run.
 
@@ -58,7 +59,7 @@ In another terminal, `npm run docs` starts the notes. For restart exercises, run
 
 ## Use the simulator
 
-On `/admin`, save the standing goal, edit and save the state JSON, then send one event with a type and payload. These are separate actions so you can verify that state changes do not summon an agent by themselves. The shortcut buttons only populate the form; inspect their JSON before saving. To simulate recovery, save a recovered state and emit another event. The new event starts a new run; it does not resume the earlier deferred run.
+On `/admin`, save the standing goal, edit and save the state JSON, then send one event with a type and payload. These are separate actions so you can verify that state changes do not summon an agent by themselves. The shortcut buttons only populate the form; inspect their JSON before saving. To simulate recovery, save a recovered state and emit another event. The new event starts a new run; it does not resume the earlier deferred run. An interval-based producer would be another source of these events, but the state editor is what lets us test observation and stale-action behavior.
 
 The dashboard has four routes:
 
