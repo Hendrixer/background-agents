@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n checkout,operator,agent,web,inngest -c green,cyan,blue,magenta,yellow \"npm:dev:checkout\" \"npm:dev:operator\" \"npm:dev:agent\" \"npm:dev:web\" \"npm:dev:inngest\"",
+    "dev": "concurrently -n operator,web,inngest -c cyan,magenta,yellow \"npm:dev:operator\" \"npm:dev:web\" \"npm:dev:inngest\"",
     "dev:checkout": "tsx service/checkout.ts",
     "dev:operator": "INNGEST_DEV=1 tsx watch server/operator.ts",
     "dev:agent": "INNGEST_DEV=1 tsx watch server/agent.ts",
