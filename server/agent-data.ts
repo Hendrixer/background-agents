@@ -1,21 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, like } from "drizzle-orm";
 import { db } from "./db";
-import { actions, approvals, events, runs } from "./schema";
+import { actions, approvals, environments, events, runs, timeline } from "./schema";
 import { inngest } from "./inngest";
 import { logAgentActivity } from "./agent-log";
 import { getLatestState } from "./observe";
 import type { ActionName, GoalCondition } from "../shared/types";
 
-export async function startRun(environmentId: string, eventId: string, goal: string, goalCondition: GoalCondition) {
-  const [run] = await db.insert(runs).values({ id: randomUUID(), environmentId: environmentId, eventId, goal, goalCondition, status: "running" }).returning();
-  await logAgentActivity(environmentId, run.id, "start", "Event started a run", { goal, eventId, goalCondition });
-  try {
-    await inngest.send({ id: eventId, name: "service/event.received", data: { environmentId, runId: run.id, eventId } });
-  } catch (error) {
-    await setRun(run.id, "failed", "Could not enqueue the run");
-    throw error;
-  }
+export async function startRun(environmentId: string, eventId: string, type: string, payload: Record<string, unknown>) {
+  const [existing] = await db.select().from(runs).where(eq(runs.id, eventId)).limit(1);
+  if (existing) return existing;
+
+  const [run] = await db.transaction(async (tx) => {
+    const [environment] = await tx.select().from(environments).where(eq(environments.id, environmentId)).limit(1);
+    if (!environment) throw new Error("Observed environment not found");
+    await tx.insert(events).values({ id: eventId, environmentId, type, data: payload }).onConflictDoNothing();
+    const [created] = await tx.insert(runs).values({ id: eventId, environmentId, eventId, goal: environment.goal, goalCondition: environment.goalCondition, status: "running" }).onConflictDoNothing().returning();
+    if (created) await tx.insert(timeline).values({ id: randomUUID(), environmentId, kind: "event", message: `${type} event`, detail: { eventId, data: payload } });
+    return [created];
+  });
+  if (!run) return getRun(eventId);
+  await logAgentActivity(environmentId, run.id, "start", "Event started a run", { goal: run.goal, eventId, goalCondition: run.goalCondition });
   return run;
 }
 
@@ -43,7 +48,7 @@ export async function setIteration(runId: string, iteration: number) {
 
 export async function cancelRun(runId: string) {
   const run = await setRun(runId, "cancelled", "Cancelled by operator");
-  await inngest.send({ name: "agent/run.cancelled", data: { runId, environmentId: run.environmentId } });
+  await inngest.send({ name: "agent/run.cancelled", data: { runId, eventId: run.eventId, environmentId: run.environmentId } });
   return run;
 }
 
