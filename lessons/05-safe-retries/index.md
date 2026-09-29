@@ -58,11 +58,11 @@ Add cancellation to the Inngest function options.
 Derive one stable ID from the run, decision cycle, and selected action.
 
 ```diff
-         )
-         return
+         return { report }
        }
+
 -      // An attempt-local ID is intentionally unsafe when a response is lost.
--      const actionId = randomUUID()
+-      const actionId = `${runId}:${randomUUID()}`
 +      const actionId = `${runId}:${cycle}:${decision.action}`
        const policy = actionPolicy[decision.action]
        if (policy === 'approval') {

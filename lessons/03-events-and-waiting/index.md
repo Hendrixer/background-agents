@@ -10,7 +10,7 @@ The world does not wait for an agent's loop. A dependency may recover while the 
 
 We chose one active run per checkout service instance. The first degraded alert opens it, later alerts join it, and a recovery event wakes it. This is an application-level correlation rule, not an LLM judgment and not a setting that Inngest can infer for us. With one service, it is easy to explain. With multiple regions or overlapping failures, a single active run might merge unrelated incidents; a run per event would instead duplicate investigation and perhaps compete over effects. A production system needs a stable incident key or explicit correlation policy. [Inngest's concurrency reference](https://www.inngest.com/docs/reference/typescript/v4/functions/concurrency) controls step execution, not the semantic meaning of an incident.
 
-The model may choose `wait` when no local action is justified. That choice does not end the run. The harness persists a waiting status and registers a durable `waitForEvent` for an update to this incident. Notifications can race wait registration, so we also compare a persisted `eventSequence` and periodically recheck it. A timeout here is a reconciliation tick, not a model decision. After a wake, we create a **new observation step**; the earlier observation remains part of history but is no longer current. [Inngest's wait-for-event documentation](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event) describes correlation and timeout behavior.
+The model may choose `wait` when no local action is justified. That choice does not end the run. The harness persists a waiting status and registers a durable `waitForEvent` for an update to this incident. A model might instead select `request_help` for the same dependency outage. At this checkpoint we record that human help is unavailable and wait for a service event; we do **not** pretend a question reached a person. The inbox arrives later in the course. Notifications can race wait registration, so we also compare a persisted `eventSequence` and periodically recheck it. A timeout here is a reconciliation tick, not a model decision. After a wake, we create a **new observation step**; the earlier observation remains part of history but is no longer current. [Inngest's wait-for-event documentation](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event) describes correlation and timeout behavior.
 
 This architecture lets the dependency fault be honest. We cannot repair the gateway by rolling back our own release. The agent can wait for a service-owned recovery signal, then check health. The condition `health.status = healthy` is evaluated from a fresh observation. A model-selected `complete` cannot override it. That predicate is intentionally simple for class; a real recovery gate might need a time window, multiple telemetry sources, and a confidence policy for noisy metrics.
 
@@ -20,24 +20,30 @@ When checkout restarts, it gets a new instance ID and new state. We supersede un
 
 ## See it in the lab
 
-Start checkout with `--fault dependency --recover-after-ms 30000`. The current checkpoint escalates when the model selects `wait`. An external dependency can recover after the first alert; this incident should remain alive to observe that change.
+Start checkout with `--fault dependency --recover-after-ms 30000`. The current checkpoint escalates when the model selects `wait` or asks for help, because neither pause path is built. An external dependency can recover after the first alert; this incident should remain alive to observe that change.
 
 ## Live coding
 
-Replace the temporary wait branch in `server/agent-workflow.ts` with `setRun(waiting)`, a correlated `waitForEvent`, and an event-sequence recheck. A timeout also reconciles an event that arrived just before the wait registration.
+Replace the temporary wait escalation in `server/agent-workflow.ts` with `setRun(waiting)`, a correlated `waitForEvent`, and an event-sequence recheck. Until the inbox is built, a model-selected help request is recorded as unavailable and parked on the same service-event wait; no question is sent to a person. A timeout also reconciles an event that arrived just before wait registration.
 
 These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Replace the temporary escalation with an event-correlated wait and sequence reconciliation.
+Replace the temporary wait escalation with an event-correlated wait. A help request also parks here until the inbox is built; record that the request was not delivered.
 
 ```diff
+         recordDecision(environmentId, runId, cycle, decision.action, decision.reason),
        )
 
-       if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
+-      if (decision.action === 'wait' || (decision.action === 'complete' && run.goalCondition)) {
 -        await step.run('wait-unavailable-' + cycle, () =>
 -          setRun(runId, 'escalated', 'Event wait is not built yet'),
++      if (
++        decision.action === 'wait' ||
++        decision.action === 'request_help' ||
++        (decision.action === 'complete' && run.goalCondition)
++      ) {
 +        if (decision.action === 'complete') {
 +          await step.run(`reject-completion-${cycle}`, () =>
 +            logAgentActivity(
@@ -49,11 +55,22 @@ Replace the temporary escalation with an event-correlated wait and sequence reco
 +            ),
 +          )
 +        }
++        if (decision.action === 'request_help') {
++          await step.run(`defer-help-${cycle}`, () =>
++            logAgentActivity(environmentId, runId, 'human', 'Help is not available yet', {
++              question: decision.detail,
++            }),
++          )
++        }
 +        await step.run(`wait-status-${cycle}`, () =>
 +          setRun(
 +            runId,
 +            'waiting',
-+            decision.action === 'wait' ? decision.reason : 'Recovery is not verified',
++            decision.action === 'request_help'
++              ? 'Help is not available yet; waiting for fresh service evidence'
++              : decision.action === 'wait'
++                ? decision.reason
++                : 'Recovery is not verified',
 +          ),
          )
 -        return
@@ -76,6 +93,25 @@ Replace the temporary escalation with an event-correlated wait and sequence reco
        }
        if (decision.action === 'complete') {
          const report = await step.run(`write-report-${cycle}`, () => writeReport(run.goal, state))
+```
+
+### Edit 2 · `server/agent-workflow.ts`
+
+Remove the separate help escalation now that this checkpoint keeps the incident waiting.
+
+```diff
+         return { report }
+       }
+
+-      if (decision.action === 'request_help') {
+-        await step.run(`help-unavailable-${cycle}`, () =>
+-          setRun(runId, 'escalated', 'Human help path is not built yet'),
+-        )
+-        return
+-      }
+       // An attempt-local ID is intentionally unsafe when a response is lost.
+       const actionId = `${runId}:${randomUUID()}`
+       const policy = actionPolicy[decision.action]
 ```
 
 Run `npm run format`, `npm run lint`, and `npm run typecheck` after all edits. The intermediate file may not typecheck while a larger handler replacement is in progress.
