@@ -74,7 +74,7 @@
       "slug": "06-incident-drill",
       "title": "Ask for help and hand off",
       "start": "lesson-6",
-      "solution": "complete",
+      "solution": "main",
       "promise": "The agent can ask a person a question, resume the same incident, and wait for independent recovery evidence.",
       "opening": "Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint escalates on `request_help`; we will let the agent reach a person and keep the incident alive.",
       "edit": "In `server/agent-workflow.ts`, remove the temporary help escalation. Reuse the persisted proposal and durable wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.",
