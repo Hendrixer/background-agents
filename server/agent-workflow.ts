@@ -1,4 +1,4 @@
-import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal , startRun } from "./agent-data";
+import { agentState, getProposal, getRun, goalSatisfied, proposeAction, recordDecision, setIteration, setRun, staleProposal, startRun } from "./agent-data";
 import { chooseAction, writeReport } from "./agent-brain";
 import { inngest } from "./inngest";
 import { logAgentActivity } from "./agent-log";
