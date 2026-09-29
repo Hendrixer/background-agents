@@ -1,44 +1,70 @@
-import "dotenv/config";
-import { openai } from "@ai-sdk/openai";
-import { generateText, Output } from "ai";
-import { z } from "zod";
-import { ACTIONS, type ActionName } from "../shared/types";
-import type { AgentState } from "./agent-data";
+import 'dotenv/config'
+import { openai } from '@ai-sdk/openai'
+import { generateText, Output } from 'ai'
+import { z } from 'zod'
+import { ACTIONS, type ActionName } from '../shared/types'
+import type { AgentState } from './agent-data'
 
 const decisionSchema = z.object({
   action: z.enum(ACTIONS),
   reason: z.string(),
   detail: z.string(),
-});
+})
 
-export type Decision = { action: ActionName; reason: string; detail: string };
+type Decision = { action: ActionName; reason: string; detail: string }
 
 function model() {
-  const id = process.env.OPENAI_MODEL;
+  const id = process.env.OPENAI_MODEL
   if (!process.env.OPENAI_API_KEY || !id) {
-    throw new Error("Set OPENAI_API_KEY and OPENAI_MODEL in .env before starting an agent run");
+    throw new Error('Set OPENAI_API_KEY and OPENAI_MODEL in .env before starting an agent run')
   }
-  return openai(id);
+  return openai(id)
 }
 
 function scriptedDecision(state: AgentState): Decision {
-  const used = (action: ActionName) => state.actions.some((item) => item.name === action);
-  const world = state.world.state;
-  if (!used("inspect_logs")) return { action: "inspect_logs", reason: "Check current failure evidence", detail: "" };
-  if (!used("inspect_changes")) return { action: "inspect_changes", reason: "Check recent deployment state", detail: "" };
+  const used = (action: ActionName) => state.actions.some((item) => item.name === action)
+  const world = state.world.state
+  if (!used('inspect_logs'))
+    return { action: 'inspect_logs', reason: 'Check current failure evidence', detail: '' }
+  if (!used('inspect_changes'))
+    return { action: 'inspect_changes', reason: 'Check recent deployment state', detail: '' }
   if (world.upstreamHealthy === false) {
-    const answered = state.humanDecisions.some((item) => item.action === "request_help");
+    const answered = state.humanDecisions.some((item) => item.action === 'request_help')
     return answered
-      ? { action: "wait", reason: "The dependency is still unavailable; wait for a fresh service event", detail: "" }
-      : { action: "request_help", reason: "The external dependency is unavailable", detail: "Can someone check and restore the payment gateway?" };
+      ? {
+          action: 'wait',
+          reason: 'The dependency is still unavailable; wait for a fresh service event',
+          detail: '',
+        }
+      : {
+          action: 'request_help',
+          reason: 'The external dependency is unavailable',
+          detail: 'Can someone check and restore the payment gateway?',
+        }
   }
-  if (world.release === "v2-bad" && !used("rollback_release") && !state.humanDecisions.some((item) => item.action === "rollback_release" && item.status !== "approved")) return { action: "rollback_release", reason: "The active release may be causing failures", detail: "" };
-  if (world.featureEnabled === true && !used("disable_feature")) return { action: "disable_feature", reason: "Disable the suspect feature", detail: "" };
-  return { action: "wait", reason: "No further local action is justified; wait for new service evidence", detail: "" };
+  if (
+    world.release === 'v2-bad' &&
+    !used('rollback_release') &&
+    !state.humanDecisions.some(
+      (item) => item.action === 'rollback_release' && item.status !== 'approved',
+    )
+  )
+    return {
+      action: 'rollback_release',
+      reason: 'The active release may be causing failures',
+      detail: '',
+    }
+  if (world.featureEnabled === true && !used('disable_feature'))
+    return { action: 'disable_feature', reason: 'Disable the suspect feature', detail: '' }
+  return {
+    action: 'wait',
+    reason: 'No further local action is justified; wait for new service evidence',
+    detail: '',
+  }
 }
 
 export async function chooseAction(goal: string, state: AgentState): Promise<Decision> {
-  if (process.env.AGENT_DEMO_MODE === "1") return scriptedDecision(state);
+  if (process.env.AGENT_DEMO_MODE === '1') return scriptedDecision(state)
 
   const result = await generateText({
     model: model(),
@@ -54,18 +80,24 @@ An alert is a trigger, not authoritative evidence. An answered help request does
 Use complete only when the configured goal is satisfied, or when no deterministic goal condition is configured and you can justify completion.
 Keep reason to one short sentence. Put a question to the operator in detail for request_help; otherwise detail may be empty.`,
     prompt: `Goal: ${goal}\n\nCurrent observed state:\n${JSON.stringify(state, null, 2)}`,
-  });
-  return result.output;
+  })
+  return result.output
 }
 
 export async function writeReport(goal: string, state: AgentState): Promise<string> {
-  if (process.env.AGENT_DEMO_MODE === "1") {
-    return `Goal: ${goal}\nObserved state: ${JSON.stringify(state.world.state)}\nActions in this run: ${state.actions.map((item) => item.name.replaceAll("_", " ")).reverse().join(", ") || "none"}.`;
+  if (process.env.AGENT_DEMO_MODE === '1') {
+    return `Goal: ${goal}\nObserved state: ${JSON.stringify(state.world.state)}\nActions in this run: ${
+      state.actions
+        .map((item) => item.name.replaceAll('_', ' '))
+        .reverse()
+        .join(', ') || 'none'
+    }.`
   }
   const result = await generateText({
     model: model(),
-    system: "Write a brief factual incident report. Include evidence, actions, recovery verification, and any unresolved risk. Do not invent facts.",
+    system:
+      'Write a brief factual incident report. Include evidence, actions, recovery verification, and any unresolved risk. Do not invent facts.',
     prompt: `Goal: ${goal}\n\nFinal state and history:\n${JSON.stringify(state, null, 2)}`,
-  });
-  return result.text;
+  })
+  return result.text
 }

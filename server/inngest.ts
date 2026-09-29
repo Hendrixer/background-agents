@@ -1,4 +1,4 @@
-import "dotenv/config";
-import { Inngest } from "inngest";
+import 'dotenv/config'
+import { Inngest } from 'inngest'
 
-export const inngest = new Inngest({ id: "background-agents-workshop" });
+export const inngest = new Inngest({ id: 'background-agents-workshop' })
