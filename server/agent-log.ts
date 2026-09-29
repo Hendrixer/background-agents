@@ -6,7 +6,7 @@ import { timeline } from "./schema";
 export type AgentActivityPhase = "start" | "observe" | "resume" | "loop" | "predict" | "act" | "pause" | "human" | "terminal";
 
 export async function logAgentActivity(
-  labId: string,
+  environmentId: string,
   runId: string,
   phase: AgentActivityPhase,
   message: string,
@@ -14,7 +14,7 @@ export async function logAgentActivity(
 ) {
   await db.insert(timeline).values({
     id: randomUUID(),
-    labId,
+    environmentId,
     runId,
     kind: `agent:${phase}`,
     message,
