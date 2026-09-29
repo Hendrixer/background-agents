@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { actions, approvals, events, environments, runs, timeline } from "./schema";
-import { startRun } from "./agent-data";
+import { inngest } from "./inngest";
 import type { ActionName, EnvironmentSnapshot, GoalCondition, WorldState } from "../shared/types";
 
 const DEFAULT_STATE: WorldState = {
@@ -78,14 +78,12 @@ export async function setAgentGoal(environmentId: string, goal: string, goalCond
   return snapshot(environmentId);
 }
 
-// Every event gets its own run. Its payload is a signal; the run reads latest state.
+// This service publishes a signal. The agent's event handler owns run creation.
 export async function emitServiceEvent(environmentId: string, type: string, data: Record<string, unknown>) {
-  const environment = await findEnvironment(environmentId);
+  await findEnvironment(environmentId);
   const eventId = randomUUID();
-  const [saved] = await db.insert(events).values({ id: eventId, environmentId: environmentId, type, data }).returning();
-  await db.insert(timeline).values({ id: randomUUID(), environmentId: environmentId, kind: "event", message: `${type} event`, detail: { eventId, data, stateVersion: environment.version } });
-  const run = await startRun(environmentId, eventId, environment.goal, environment.goalCondition);
-  return { event: saved, run };
+  await inngest.send({ id: eventId, name: "service/event.received", data: { environmentId, eventId, type, payload: data } });
+  return { eventId };
 }
 
 export async function applyAction(environmentId: string, actionId: string, name: ActionName, input: Record<string, unknown> = {}) {

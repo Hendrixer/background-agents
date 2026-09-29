@@ -71,13 +71,7 @@ function renderLesson(lesson, number) {
   blocks.forEach(({ file, lines: diff }, index) => {
     const cue = cues[index];
     lines.push(`### Edit ${index + 1} · \`${file}\``, "");
-    if (number === 3 && file === "server/agent-data.ts" && diff.some((line) => line.startsWith("+export function hasRecovered"))) {
-      const added = diff.filter((line) => line.startsWith("+")).map((line) => line.slice(1));
-      while (added.at(-1) === "") added.pop();
-      lines.push(`${cue} The \`recordDecision\` function below it stays where it is.`, "", "```ts", ...added, "```", "");
-    } else {
-      lines.push(cue, "", "```diff", ...diff, "```", "");
-    }
+    lines.push(cue, "", "```diff", ...diff, "```", "");
   });
 
   lines.push(
@@ -97,7 +91,7 @@ function renderLesson(lesson, number) {
     "",
     "## Catch up",
     "",
-    `Your solution is \`${lesson.solution}\`. Check your work with \`git status --short\`. If you need to switch with unfinished edits, save them first with \`git stash push -u -m "lesson ${number} progress"\`, then \`git switch ${lesson.solution}\`. A branch switch changes code, not the PostgreSQL lab state or Inngest run history; reset the simulator for a clean demo.`,
+    `Your solution is \`${lesson.solution}\`. Check your work with \`git status --short\`. If you need to switch with unfinished edits, save them first with \`git stash push -u -m "lesson ${number} progress"\`, then \`git switch ${lesson.solution}\`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.`,
     "",
     `**Common mistake:** ${lesson.mistakes}`,
     "",

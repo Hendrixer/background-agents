@@ -2,11 +2,11 @@
 
 You now have a working background agent. I want you to treat it as a system you might put in front of an on-call engineer, not as a demo that gets credit for producing a plausible report. The question is: **which claims can the system prove from its state and history, and which claims are still guesses?**
 
-This lab is for teams that finish a lesson early or want a deeper capstone after the incident drill. Use the supplied simulator and your own LLM key. Work in pairs if that makes it easier to compare model behavior. Reset the lab between trials. Keep the Inngest trace, the per-run log on `/activity`, and the server event log on `/events` open.
+This lab is for teams that finish a lesson early or want a deeper capstone after the incident drill. Use the supplied state editor and event emitter with your own LLM key. Work in pairs if that makes it easier to compare model behavior. Save a fresh state before each trial, then send an event. Keep the Inngest trace, the per-run log on `/activity`, and the server event log on `/events` open.
 
 ## 1. Write the contract before running anything
 
-For each scenario—Feature rollout, Faulty release, and Upstream outage—make a small evaluation card:
+For each preset state—Feature rollout, Faulty release, and Dependency outage—make a small evaluation card:
 
 | Check | Question to answer |
 | --- | --- |
@@ -20,9 +20,9 @@ Do this **before** you see the model's choices. Otherwise it is too easy to move
 
 ## 2. Collect three different traces
 
-Run Feature rollout normally. Then reset and run it with **Lose the next tool response** armed. Finally, run Faulty release and leave the approval pending while you restart only the agent endpoint. For each run, record the run ID, final status, model decision count, action IDs, and whether a human had to act. Identify which state is held by PostgreSQL and which step results are held by Inngest.
+Save Feature rollout state and emit a health event. Then save that state again and emit another event with **Lose the next tool response** armed. Finally, save Faulty release state, emit a deployment event, and leave the approval pending while you restart only the agent endpoint. For each run, record the run ID, final status, model decision count, action IDs, and whether a human had to act. Identify which state is held by PostgreSQL and which step results are held by Inngest.
 
-Now run Upstream outage. Answer the help request while the dependency is still down. Pause before clicking **Simulate upstream recovery**. Explain why the answer belongs in the agent's context but cannot satisfy its completion predicate. Then recover the dependency and inspect the final report.
+Now save Dependency outage state and emit an event. Answer the help request while the dependency is still down. The first run should defer. Explain why the answer belongs in that run's context but cannot satisfy its completion condition. Then save the Recovered state, emit a new event, and inspect the second run's report. Compare the two run IDs.
 
 If a model takes a different path than mine, keep the trace. The variability is evidence for your evaluation, not a reason to quietly rerun until you like the result.
 
@@ -30,12 +30,12 @@ If a model takes a different path than mine, keep the trace. The variability is 
 
 Choose one of these extensions and implement or specify it precisely:
 
-1. **Recovery evidence:** Change `hasRecovered` to require a second independent signal, such as the dependency being healthy as well as sustained health samples. State how that changes false-positive and delayed-completion risk. Test health-only event rates at both **1/sec** and **5/sec**.
+1. **Recovery evidence:** Replace the simple `health.status` completion condition with a condition that checks two independent signals, such as checkout health and dependency health. Decide whether this belongs in a richer deterministic predicate or an observer that computes a derived state field. State how that changes false-positive and delayed-completion risk. Test two events emitted close together against different saved versions.
 2. **Approval scope:** Add one new precondition that is checked *after* approval and immediately before rollback. Show a stale approval that is rejected rather than applied. Decide what the inbox should say when the proposal becomes stale.
 3. **Unknown effect:** Imagine the operations API calls a provider that cannot deduplicate requests. Design persisted `unknown`, reconciliation, and escalation states for a response lost after a possible commit. Show why neither Inngest's saved steps nor our local `actions` table can prove what the remote provider did.
 4. **Run deadline:** Choose a maximum age for an unresolved incident and make the run end with a visible unresolved report or escalation. Specify whether a pending approval gets a different deadline and what an operator sees before and after expiry.
 
-For any code change, run `npm run typecheck`, repeat the relevant scenario, and show the trace that demonstrates the new rule. A design-only choice needs a state diagram, a failure window, and a proposed test that could disprove your claim.
+For any code change, run `npm run typecheck`, save the relevant state, emit a new event, and show the trace that demonstrates the new rule. A design-only choice needs a state diagram, a failure window, and a proposed test that could disprove your claim.
 
 ## 4. Defend a design change
 
