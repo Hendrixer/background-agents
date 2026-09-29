@@ -115,18 +115,18 @@ app.post("/operations", (request, response) => {
     case "inspect_changes": result = { changes: changes.slice(-12) }; break;
     case "disable_feature": {
       state = { ...state, featureEnabled: false };
-      version++;
       recordChange("Disabled checkout express feature");
-      result = { featureEnabled: false, version };
       if (activeFault === "feature") recover("feature disablement");
+      else version++;
+      result = { featureEnabled: false, version };
       break;
     }
     case "rollback_release": {
       state = { ...state, release: "v1-stable" };
-      version++;
       recordChange("Rolled checkout back to v1-stable");
-      result = { release: state.release, version };
       if (activeFault === "release") recover("release rollback");
+      else version++;
+      result = { release: state.release, version };
       break;
     }
   }
@@ -156,7 +156,6 @@ app.listen(3004, "127.0.0.1", () => {
   if (fault === "dependency" && recoverAfterMs > 0) {
     setTimeout(() => {
       state = { ...state, upstreamHealthy: true };
-      version++;
       recover("upstream dependency recovery");
     }, recoverAfterMs);
   }
