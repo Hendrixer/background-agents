@@ -40,7 +40,7 @@ npm run db:seed
 npm run dev
 ```
 
-In another terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. `AGENT_DEMO_MODE=1 npm run dev:agent` gives instructors deterministic choices for rehearsal.
+In another terminal, `npm run docs` serves the lesson notes at http://127.0.0.1:5174. The operator app is at http://127.0.0.1:5173, and Inngest traces are at http://127.0.0.1:8288. Every agent run uses the configured OpenAI model. The agent startup line names the model, and http://127.0.0.1:3002/api/health reports it so you can check before teaching.
 
 | Process | Command | Address |
 | --- | --- | --- |
@@ -79,4 +79,4 @@ The repository uses Oxfmt with single quotes and no semicolons. After a lesson e
 | 3 · Wait for events | `lesson-3` | `lesson-4` |
 | 4 · Human approval | `lesson-4` | `lesson-5` |
 | 5 · Safe retries | `lesson-5` | `lesson-6` |
-| 6 · Help and handoff | `lesson-6` | `complete` |
+| 6 · Help and handoff | `lesson-6` | `main` |

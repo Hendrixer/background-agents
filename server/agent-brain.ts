@@ -21,51 +21,7 @@ function model() {
   return openai(id)
 }
 
-function scriptedDecision(state: AgentState): Decision {
-  const used = (action: ActionName) => state.actions.some((item) => item.name === action)
-  const world = state.world.state
-  if (!used('inspect_logs'))
-    return { action: 'inspect_logs', reason: 'Check current failure evidence', detail: '' }
-  if (!used('inspect_changes'))
-    return { action: 'inspect_changes', reason: 'Check recent deployment state', detail: '' }
-  if (world.upstreamHealthy === false) {
-    const answered = state.humanDecisions.some((item) => item.action === 'request_help')
-    return answered
-      ? {
-          action: 'wait',
-          reason: 'The dependency is still unavailable; wait for a fresh service event',
-          detail: '',
-        }
-      : {
-          action: 'request_help',
-          reason: 'The external dependency is unavailable',
-          detail: 'Can someone check and restore the payment gateway?',
-        }
-  }
-  if (
-    world.release === 'v2-bad' &&
-    !used('rollback_release') &&
-    !state.humanDecisions.some(
-      (item) => item.action === 'rollback_release' && item.status !== 'approved',
-    )
-  )
-    return {
-      action: 'rollback_release',
-      reason: 'The active release may be causing failures',
-      detail: '',
-    }
-  if (world.featureEnabled === true && !used('disable_feature'))
-    return { action: 'disable_feature', reason: 'Disable the suspect feature', detail: '' }
-  return {
-    action: 'wait',
-    reason: 'No further local action is justified; wait for new service evidence',
-    detail: '',
-  }
-}
-
 export async function chooseAction(goal: string, state: AgentState): Promise<Decision> {
-  if (process.env.AGENT_DEMO_MODE === '1') return scriptedDecision(state)
-
   const result = await generateText({
     model: model(),
     output: Output.object({ schema: decisionSchema }),
@@ -85,14 +41,6 @@ Keep reason to one short sentence. Put a question to the operator in detail for 
 }
 
 export async function writeReport(goal: string, state: AgentState): Promise<string> {
-  if (process.env.AGENT_DEMO_MODE === '1') {
-    return `Goal: ${goal}\nObserved state: ${JSON.stringify(state.world.state)}\nActions in this run: ${
-      state.actions
-        .map((item) => item.name.replaceAll('_', ' '))
-        .reverse()
-        .join(', ') || 'none'
-    }.`
-  }
   const result = await generateText({
     model: model(),
     system:
