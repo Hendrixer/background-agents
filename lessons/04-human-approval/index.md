@@ -69,7 +69,7 @@ Import the supplied proposal helpers.
 Replace the temporary approval escalation with a persisted proposal, durable decision wait, and fresh-state recheck.
 
 ```diff
-       const actionId = randomUUID()
+       const actionId = `${runId}:${randomUUID()}`
        const policy = actionPolicy[decision.action]
        if (policy === 'approval') {
 -        await step.run('approval-unavailable-' + cycle, () =>
