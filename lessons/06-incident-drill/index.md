@@ -2,56 +2,44 @@
 
 Start: `lesson-6` · Finished solution: `complete`
 
-**Outcome:** The agent can ask a person a question, resume that run with the answer, and defer until a later event reports external recovery.
+**Outcome:** The agent can ask a person a question, resume the same incident, and wait for independent recovery evidence.
 
 ## The engineering idea
 
-The upstream outage is the incident our local tools cannot fix. Disabling our feature or rolling back our release will not repair the dependency. A useful agent needs to recognize that limit, reach out to a person, and report what remains unresolved. This is when the agent inbox becomes more than an approval queue: it is a place for the agent to ask a specific question and receive new information after the original browser session has ended.
+The dependency outage is the incident our local tools cannot fix. Disabling our feature or rolling back our release will not repair a payment gateway. A useful background agent should recognize that limit and reach a person with a specific question. The inbox is where unattended work returns to me, not just an approval queue.
 
-`request_help` is a model-selected next action. The harness turns it into a persisted inbox item and a durable wait. The answer resumes **that run** and becomes part of its next observation. An answer is not evidence that checkout recovered. If the dependency is still down and no local action is justified, that run ends as deferred. Later, the simulator can save recovered state and publish another service event. The agent's event handler creates a **new run**; that run reads the fresh state and may complete. We are deliberately distinguishing a human reply from a world-change notification.
+`request_help` is a model-selected next action. The harness persists a question and waits for a correlated answer. The answer resumes **the same incident run** and becomes part of the next bounded context view. It is not evidence that checkout recovered. If the dependency remains down, the agent can choose `wait`; a later `health.recovered` event wakes that run, and a fresh observation checks the goal. [Inngest's human-in-the-loop guidance](https://www.inngest.com/docs/ai-patterns/human-in-the-loop) shows the durable propose–wait–resume pattern.
 
-This separation is my central design preference. Let the model choose a next action from a constrained catalog. Let the harness own permissions, fresh observation, retries, cancellation, decision limits, and terminal states. Let a person provide judgment or missing information. It makes the agent flexible without making its promises unverifiable. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) emphasizes environmental feedback and bounded autonomy; [Inngest's durable-agent guide](https://www.inngest.com/docs/learn/durable-agents) shows how a run can pause and resume around external input.
+Read the Activity trace as a story: alert, observation, evidence gathering, question, pause, answer, observation, wait, recovery event, observation, report. The agent is free to choose among tools at new decision points, but the harness is responsible for permissions, durable suspension, limits, and completion. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) emphasizes environmental feedback and bounded autonomy. I want the person to see both what the agent did and why it stopped.
 
-Read the two traces as a story. The first event starts a run that inspects evidence, asks for help, waits, receives an answer, observes again, and defers because the world is still degraded. The later recovery event starts a second run that sees the healthy world and writes a report. The Activity page should show both run IDs and each run's observe, predict, act, pause, and terminal entries. The inbox should show the question and the human response. Observability is part of the product: if an agent works while people are away, people need to know what it did and why it stopped.
+### Evaluate the work, not just its final sentence
 
-This pattern does not mean every agent should spawn a run for every webhook forever. An alerting product might coalesce noisy events into one active incident. A research agent might use a schedule to revisit a goal. A coding agent might retain a task until a human reviews a patch. The product question is how long a run owns work, what new information resumes it, and what starts a new unit of work. We chose event-triggered runs and a human wait because they make those boundaries concrete.
+A polished report can hide an unsafe path. An agent might disable an unrelated feature, ask for approval too late, or claim recovery from stale evidence and still write a convincing summary. [Anthropic's agent-evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) distinguishes the environment outcome from the trajectory; [τ-bench](https://arxiv.org/abs/2406.12045) studies tool use under policy constraints over complete interactions. I would score **world state**, **action sequence**, and **human boundary** separately. A run that safely asks for help and waits can be better than a confident false completion.
 
-### Evaluate the work, not just the final sentence
+`agentState` returns a bounded slice of recent events, actions, and human decisions alongside current checkout state. That is enough for this exercise, but long-running incidents need a context policy. [Anthropic's context-engineering work](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) argues for selecting useful context and keeping durable artifacts outside the prompt. I would preserve the goal snapshot, unresolved commitments, approval scopes, action IDs, and evidence links; summarize old narrative detail instead of replaying every log line.
 
-A polished report can hide an unsafe path. An agent might disable an unrelated feature, ask for approval too late, or claim recovery based on stale state and still write a convincing summary. [Anthropic's agent-evaluation guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) distinguishes an end result from the trajectory that produced it. [The τ-bench research](https://arxiv.org/abs/2406.12045) tests tool use and policy constraints across complete interactions. I would evaluate **environment state**, **action sequence**, and **human boundary** separately.
-
-Before running your model, write a card for each preset: what state would satisfy the goal, which actions are forbidden without approval, which questions a person can answer, what budget is acceptable, and whether deferred or escalated is an honest outcome. Then inspect the run timeline for prohibited actions, repeated effects, stale approvals, and loops that spend decisions without new evidence. An honest deferral can be better than a confident but false completion when our tools cannot repair an upstream service.
-
-### Context is a budget, not a transcript
-
-`agentState` returns a bounded slice of recent events, actions, and human decisions alongside the latest world state. That is enough for this exercise, but it raises a real design question: which facts must survive when they fall out of the window? [Anthropic's context-engineering work](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) argues for selecting useful context and keeping durable artifacts outside the prompt. I would preserve the standing goal snapshot, unresolved commitments, approval scopes, action IDs, and links to evidence. I would summarize old narrative detail instead of replaying every log line into every model call. The database carries durable facts; the prompt is a temporary working view.
-
-### The advanced question: what can we delegate?
-
-If the model picks a risky action, ask whether the defect was in its evidence, tool description, available actions, or harness policy. Changing the prompt alone is a weak fix when the system still permits the same unsafe effect. Compare one normal run, one lost-response run, one stale-state run, and one human-decision run. For each, describe **trigger → observation → model choice → harness response → world state → user-visible outcome**. The architecture should explain all four without a special case for “demo mode.”
-
-My opinion is that the product is the continuing relationship between a person, an agent, and a changing world. The agent holds a goal for a bounded piece of work, pauses when it needs a person, and gives control back with a clear record. A later signal can start the next piece of work. The code here is small so we can see that contract clearly. The hard part of AI engineering is deciding what evidence and authority make the contract trustworthy.
+If the model picks a bad action, ask whether the problem was evidence, tool design, available actions, or harness policy. Changing the prompt alone is weak when the effect owner still permits the same unsafe operation. The real product is the continuing relationship among a person, an agent, and a changing world, with a clear record of what was observed, authorized, attempted, and verified.
 
 ## See it in the lab
 
-Load Dependency outage, save state, and emit one dependency event. On this branch the agent escalates because it has no help path. We will turn request_help into an inbox question and a durable human wait. An answer gives context to this run; it does not certify recovery.
+Start checkout with `--fault dependency --recover-after-ms 30000`. Local tools cannot fix an upstream gateway. The current checkpoint escalates on `request_help`; we will let the agent reach a person and keep the incident alive.
 
 ## Live coding
 
-In server/agent-workflow.ts, remove the temporary request_help escalation, let help share the persisted proposal and wait path, and continue the loop after an approved answer. Skip the rollback-specific state recheck for a help answer.
+In `server/agent-workflow.ts`, remove the temporary help escalation. Reuse the persisted proposal and durable wait for `request_help`, but continue with fresh observation after an answer instead of treating it as authorization for a tool effect.
 
-These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
+These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Remove the temporary escalation and let request_help reach the proposal path.
+Remove the temporary help escalation.
 
 ```diff
          return { report };
        }
- 
+
 -      if (decision.action === "request_help") {
--        await step.run(`help-not-implemented-${cycle}`, () => setRun(runId, "escalated", "Help requests are added in lesson 6"));
+-        await step.run(`help-unavailable-${cycle}`, () => setRun(runId, "escalated", "Human help path is not built yet"));
 -        return;
 -      }
        const actionId = `${runId}:${cycle}:${decision.action}`;
@@ -67,7 +55,7 @@ Remove the temporary escalation and let request_help reach the proposal path.
 
 ### Edit 2 · `server/agent-workflow.ts`
 
-After an approved help answer, continue with fresh observation. Only a later service event creates a new run after this one defers.
+Let help use the persisted proposal and wait, then continue with a new observation.
 
 ```diff
            await step.run(`stop-after-human-${cycle}`, () => setRun(runId, "escalated", `Human decision: ${proposal.status}`));
@@ -83,20 +71,20 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Send one Dependency outage event. Answer the request in the inbox. The same run resumes, sees that the dependency is still down, and ends deferred. Load Recovered, save state, and send a new health event; a second run should complete and report the observed state.
+Answer the help request from the inbox. The same run resumes. If checkout is still degraded, it waits for the service's recovery event; only a fresh healthy observation completes it. The Activity feed should show the question, answer, pause, wake, and report.
 
 ## Break it on purpose
 
-Answer help but leave state degraded. Confirm the answer did not make the first run complete. Then change state without an event; no new run appears. Send the event and inspect both run histories side by side.
+Answer the person but leave `--recover-after-ms 0`: the answer alone must not mark checkout healthy. Restart the service healthy and explain why the old incident is superseded rather than completed.
 
 ## Engineering challenge
 
-Write an evaluation card for each preset: target world state, forbidden actions, allowed human requests, maximum decisions, and acceptable terminal states. Run normal, approval, stale-state, and lost-response trials. Score the outcome and the trajectory separately; identify one failure that requires a policy or tool-contract change rather than a stronger prompt.
+Evaluate outcome, trajectory, and human boundary for feature, release, dependency, and lost-response runs. Which failure requires a policy or tool-contract change rather than a prompt change?
 
 ## Catch up
 
-Your solution is `complete`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 6 progress"`, then `git switch complete`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
+Your solution is `complete`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 6 progress"`, then `git switch complete`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.
 
-**Common mistake:** Do not wait for a service event inside the old run; under this architecture it starts a new run. A help answer resumes the old run, but external recovery is a later observation for a separate run.
+**Common mistake:** A human answer is new context, not evidence of recovery. The model can ask for help, but the harness owns the inbox request and resumption.
 
-**Optional extension:** Add an explicit unresolved report to deferred runs so an operator can see what remains to be done.
+**Optional extension:** Add a concise unresolved status in the operator app for a dependency that never recovers.
