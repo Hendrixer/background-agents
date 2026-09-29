@@ -2,65 +2,57 @@
 
 Start: `lesson-1` · Finished solution: `lesson-2`
 
-**Outcome:** One external event starts one bounded observe–decide–act run against a standing goal.
+**Outcome:** A checkout alert opens an incident, and a bounded harness observes, chooses, acts, and verifies the goal.
 
 ## The engineering idea
 
-I think background agents are the real productivity unlock. A chat box can answer a question, but the work I care about often outlives the conversation: a service needs to recover, a customer needs an answer, or a project needs several steps spread across hours. I want to hand an agent an **outcome**, leave, and come back to progress or a precise request for my help.
+I think background agents are the real productivity unlock. A chat box can answer while I am there, but work I care about often outlives the conversation. A service needs to recover; a project needs more evidence; a person may need to approve a risky action hours later. I want to give an agent an **outcome**, leave, and return to progress or a precise request for my help.
 
-“Chat agent” and “background agent” describe different things. Chat is an interface. Background execution is a lifecycle. A chat message can start a background run, and a background run can later reach me in an inbox. What changes is who owns the work between those interactions. In our app, we configure a standing goal before an event arrives. The event handler creates a run with its own ID, goal snapshot, status, history, and stopping condition. The browser can close.
+“Chat agent” describes an interface. “Background agent” describes a lifecycle. A chat message can launch a durable run, and that run can later reach me in an inbox. What matters is who owns work between interactions. Our checkout service sends an alert to the operator API. That API opens one incident run with a goal snapshot, status, history, and stopping condition. Later alerts join it. The browser is irrelevant to the run's survival.
 
-The loop we will build is small: **observe the current world → choose one next action → let the harness validate and execute it → observe again**. The model is useful because it can choose among actions based on evidence we did not hard-code into a fixed path. The harness is useful because it controls the action catalog, the actual tool call, the maximum number of decisions, and whether the goal is truly done. I do not want the model to be the sole authority on its own success. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) makes the same distinction between model-directed action and predefined workflow, and emphasizes ground truth from the environment and stopping conditions.
+The loop we build is **observe current world → choose one action → let the harness validate and execute it → observe again**. The model can select among actions based on evidence without our coding a path for every failure. The harness owns the action catalog, the decision limit, and the test for completion. I do not want the model to be the sole authority on its own success. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) distinguishes model-directed action from predefined workflows and emphasizes environmental feedback and stopping conditions.
 
-The incident simulator gives us a concrete world to observe. It stores a JSON state object and publishes events, just as a simple external service could. The agent's event handler records the event and creates a run. `agentState` returns the latest service state, recent events, recent actions, and human decisions. Those are facts for the next decision, not a transcript to blindly replay. The model returns one structured choice. The harness performs the selected operation and checks the result. The first version puts that entire loop inside one long step. It works for the feature incident, but if the process disappears halfway through, we cannot tell which internal actions were already done. We will make that flaw visible before fixing it.
+The checkout process is a small synthetic service, but it is still a separate process with its own state and API. A startup fault changes what it returns; an agent operation can change that state again. The harness sees no fault flag. `agentState` reads current checkout state and a bounded slice of events, actions, and human decisions. The model returns one structured choice, which the harness evaluates. This first loop sits inside one large step, making its recovery weakness visible for lesson 2.
 
-The checkout service is a simulation, and the dashboard says so explicitly. Saving a state does not create a run. Sending an event does not certify that the state is healthy. The agent must read the latest state and compare it with the goal. This gives us reproducible evidence for the workshop, not a claim that we measured real user traffic. In a production system I would ask where the signal came from, how fresh it is, whether it represents customers, and what false positives would cost before letting it end a run.
+Not every task needs an agent. If `if release === "v2-bad" then rollback` describes the full, authorized solution, I would write a workflow. The model earns its place when evidence and the next action are uncertain. A validated JSON action is only a well-formed suggestion; it is not authorization, proof of cause, or evidence of recovery.
 
-Not every task needs this architecture. If one model call can answer a question and nothing needs to happen later, keep it simple. Use a background agent when the goal needs multiple observations, actions, waits, or human decisions and when progress must survive the original request. The goal is more productive autonomy with clear boundaries, not a larger loop for its own sake.
+### Four different kinds of information
 
-Before coding, decide which parts you would trust to the model in this incident and which parts you would insist the application control. We will revisit that boundary in every lesson.
+**World state** is what checkout returns now. **Run state** is the incident's goal, status, and decision count. **Execution history** is what Inngest has already checkpointed. **Event history** records notifications that the world may have changed. Confusing these leads to common agent failures: treating an alert payload as a current snapshot, treating a past observation as current, or treating a model's proposed outcome as an actual effect. The [ReAct paper](https://arxiv.org/abs/2210.03629) studies reasoning and acting with environmental feedback; the practical lesson here is to take a bounded step and look again.
 
-### The architecture is a contract
-
-Our model returns `{ action, reason, detail }`. That schema is useful, but it only tells us that the response has the right *shape*. It does not prove the action is authorized, that the reason is true, or that the goal has been reached. The harness must still decide whether the action exists, whether its preconditions hold, whether it needs approval, and what to do after it runs. A valid JSON object can still be a bad decision.
-
-I want you to distinguish three kinds of state. **World state** is what the checkout service is doing now. **Run state** is the agent's goal, status, and decision count. **Execution history** is what Inngest has already completed. If we mix these together, we can mistake a past observation for the current world or a model's claim for an actual side effect. The event is a fourth object: a notification that something may have changed. In lesson 1 we keep the loop deliberately crude so that distinction becomes visible when it fails.
-
-The [ReAct paper](https://arxiv.org/abs/2210.03629) studied interleaving reasoning and actions with environmental feedback. I take a practical lesson from it: an agent should not make a long plan once and then act on stale assumptions. It needs to gather evidence, take a bounded next step, and look again. Our implementation does **not** need to expose a model's private reasoning trace to get that benefit. We need observable actions and results.
-
-### Tool design is AI engineering
-
-The action catalog is small on purpose. `inspect_logs` and `inspect_changes` gather evidence; `disable_feature` and `rollback_release` change the service; `request_help` hands a question to a person; `complete` is a proposal to stop. If I add ten nearly identical tools, I make selection harder without necessarily adding capability. [Anthropic's tool-design work](https://www.anthropic.com/engineering/writing-tools-for-agents) emphasizes clear boundaries and useful, compact tool results. In this app, the `agentState` tool gives the model a bounded view instead of dumping the entire event table into its context.
-
-There is also a trust boundary. A log line is evidence about the service, not an instruction to the agent. Real logs, webpages, and tickets can contain text written by someone other than the operator. [AgentDojo](https://arxiv.org/abs/2406.13352) demonstrates how tool-fed content can redirect agents in realistic tasks. Our lab does not implement an injection attack, but the architectural answer is already visible: constrain the model's capabilities in code, treat retrieved content as data, and make consequential actions pass through policy.
-
-If the correct remediation could be expressed completely as `if release === "v2-bad" then rollback`, I would write that workflow and skip the model. The model earns its place when the evidence and next action are genuinely uncertain. The engineer's job is to give it useful choices, reliable observations, and boundaries that remain true even when it guesses wrong.
+Our tool list is deliberately small. `inspect_logs` and `inspect_changes` gather evidence. `disable_feature` and `rollback_release` change checkout. `wait`, `request_help`, and `complete` request lifecycle changes, which the harness interprets. Clear, compact tool boundaries make a model's choices easier to inspect; [Anthropic's tool-design guidance](https://www.anthropic.com/engineering/writing-tools-for-agents) is a useful reference. Logs are evidence, not instructions: untrusted tool content can try to redirect an agent, as [AgentDojo](https://arxiv.org/abs/2406.13352) demonstrates. Policy enforced in code matters more than a prompt telling the model to behave.
 
 ## See it in the lab
 
-On /admin, save a degraded state but do not send an event. Activity stays unchanged. Send one health event: the placeholder run appears. The agent's event handler has created the run and copied the standing goal. Our job is to give that run a harness.
+Start checkout with `--fault feature`. The service sends an alert and the operator API opens an incident, but the placeholder function does no investigation. Inspect `/events` and `/activity`: an event is present, and the run lacks a useful trajectory.
 
 ## Live coding
 
-In server/agent-workflow.ts, replace only the placeholder handler. The event trigger, tool-call helper, and database functions are supplied. This first loop is deliberately one opaque step; lesson 2 will expose its internal checkpoints.
+Replace the placeholder function in `server/agent-workflow.ts` with the first observe–decide–act loop. The checkout API, event intake, database access, model choice, and operator UI are supplied. This first version deliberately puts the whole loop inside one Inngest step.
 
-These code blocks are the exact changes between the start and solution branches. A new function is shown as complete TypeScript. In a diff, unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
+These code blocks show the exact changes between the start and solution branches. Unprefixed context stays, green `+` lines are added, and red `-` lines are removed.
 
 ### Edit 1 · `server/agent-workflow.ts`
 
-Replace the placeholder handler. The surrounding function options and executeAction helper stay in place.
+Replace the placeholder function. The alert intake and checkout API are supplied.
 
 ```diff
-       }
-     },
-   },
++import { randomUUID } from "node:crypto";
++import { agentState, getRun, goalSatisfied, recordDecision, recordToolAction, setIteration, setRun } from "./agent-data";
++import { chooseAction, writeReport } from "./agent-brain";
+ import { inngest } from "./inngest";
++import { checkoutServiceUrl } from "./observe";
+
+-// The alert intake has already opened an incident. Build its harness here.
+ export const incidentAgent = inngest.createFunction(
+   { id: "incident-agent", name: "Checkout incident agent", triggers: { event: "incident/opened" } },
 -  async ({ event }) => {
+-    return { runId: event.data.runId, next: "Build the observe–decide–act loop" };
 +  async ({ event, step }) => {
-     const { environmentId, eventId, type, payload } = event.data;
-     const run = await startRun(environmentId, eventId, type, payload);
--    await setRun(run.id, "waiting", "Build the agent loop in lesson 1");
-+    const runId = run.id;
++    const { environmentId, runId } = event.data;
++    // One opaque checkpoint proves the loop, but hides where each effect happened.
 +    return step.run("whole-agent-loop", async () => {
++      const run = await getRun(runId);
 +      for (let cycle = 1; cycle <= 8; cycle++) {
 +        const state = await agentState(environmentId, runId);
 +        if (goalSatisfied(state, run.goalCondition)) {
@@ -71,25 +63,22 @@ Replace the placeholder handler. The surrounding function options and executeAct
 +        const decision = await chooseAction(run.goal, state);
 +        await setIteration(runId, cycle);
 +        await recordDecision(environmentId, runId, cycle, decision.action, decision.reason);
-+        if (decision.action === "defer") {
-+          await setRun(runId, "deferred", decision.reason);
++        if (decision.action === "wait" || decision.action === "complete" || decision.action === "request_help") {
++          await setRun(runId, "escalated", "This first loop cannot pause yet");
 +          return;
 +        }
-+        if (decision.action === "complete") {
-+          if (run.goalCondition) {
-+            await setRun(runId, "deferred", "Configured goal condition is not satisfied");
-+            return;
-+          }
-+          const report = await writeReport(run.goal, state);
-+          await setRun(runId, "completed", null, report);
-+          return { report };
-+        }
-+        if (decision.action === "request_help") {
-+          await setRun(runId, "escalated", "Help requests are added in lesson 6");
++        if (decision.action === "rollback_release") {
++          await setRun(runId, "escalated", "Approval gate is not built yet");
 +          return;
 +        }
-+        await executeAction(environmentId, runId, `${runId}:${cycle}:${decision.action}`, decision.action);
-+        await new Promise((resolve) => setTimeout(resolve, 1000));
++        const actionId = randomUUID();
++        const response = await fetch(checkoutServiceUrl + "/operations", {
++          method: "POST", headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({ actionId, name: decision.action, expectedVersion: state.world.version }),
++        });
++        const result = await response.json() as Record<string, unknown>;
++        if (!response.ok) throw new Error(String(result.error ?? response.status));
++        if (result.stale !== true) await recordToolAction(environmentId, runId, actionId, decision.action, { expectedVersion: state.world.version }, result);
 +      }
 +      await setRun(runId, "escalated", "Decision limit reached");
 +    });
@@ -101,20 +90,20 @@ Run `npm run typecheck` after all edits. The intermediate file may not typecheck
 
 ## Verify
 
-Use the Feature rollout shortcut, save state, then send one event. The run should inspect evidence, disable the feature, and end deferred because the saved health is still degraded. Save the Recovered state and send another event: a second run should complete. Confirm the first run did not resume.
+Restart checkout with `--fault feature`. The run should inspect logs and changes, disable the feature, observe the now-healthy state, and complete. Try `--fault release`: this early harness escalates because its approval gate is not built.
 
 ## Break it on purpose
 
-Save a different state without emitting an event. Explain why no new run appears. Then emit two events rapidly and compare run IDs, goals, and observed state versions. The events start separate runs even if both read the same latest state.
+Compare the alert payload with the body returned by the checkout `/state` endpoint. Why should the agent read the latter? Restart checkout healthy and confirm that `service.started` does not open an incident.
 
 ## Engineering challenge
 
-Draw the authority boundaries for event delivery, standing goal configuration, current world state, model choice, tool policy, and completion. Which of these should be snapshotted into a run, and which should be read fresh? Explain what happens if the goal changes after an event is sent.
+Draw the authority boundaries for checkout state, event delivery, incident creation, model choice, tool policy, and completion. Which data is snapshotted when the incident opens, and which must be read fresh?
 
 ## Catch up
 
-Your solution is `lesson-2`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 1 progress"`, then `git switch lesson-2`. A branch switch changes code, not PostgreSQL or Inngest history; save a fresh state and emit a new event for the next drill.
+Your solution is `lesson-2`. Check your work with `git status --short`. If you need to switch with unfinished edits, save them first with `git stash push -u -m "lesson 1 progress"`, then `git switch lesson-2`. A branch switch changes code, not PostgreSQL, checkout process state, or Inngest history. Restart checkout with a fresh fault flag for the next drill.
 
-**Common mistake:** The event payload is not the world state. The loop must call agentState each cycle. A tool changing the release or feature flag does not by itself prove that service health recovered.
+**Common mistake:** The event is a doorbell, not the world state. Do not let the model decide whether it needs an approval; the harness owns that boundary.
 
-**Optional extension:** Add a read-only inspection action to the tool catalog. State what it should return and what it must never mutate.
+**Optional extension:** Write one extra read-only investigation tool and identify which process owns its result.
