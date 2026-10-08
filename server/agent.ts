@@ -4,8 +4,8 @@ import { serve } from 'inngest/express'
 import { incidentAgent } from './agent-workflow'
 import { inngest } from './inngest'
 
-if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) {
-  throw new Error('Set OPENAI_API_KEY and OPENAI_MODEL before starting the real agent')
+if (!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_MODEL) {
+  throw new Error('Set ANTHROPIC_API_KEY and ANTHROPIC_MODEL before starting the real agent')
 }
 
 const app = express()
@@ -15,14 +15,14 @@ app.get('/api/health', (_request, response) =>
   response.json({
     ok: true,
     process: 'agent',
-    mode: 'openai',
-    model: process.env.OPENAI_MODEL,
+    mode: 'anthropic',
+    model: process.env.ANTHROPIC_MODEL,
   }),
 )
 app.use('/api/inngest', serve({ client: inngest, functions: [incidentAgent] }))
 
 app.listen(3002, '127.0.0.1', () =>
   console.log(
-    `Agent endpoint http://127.0.0.1:3002/api/inngest | REAL MODEL: ${process.env.OPENAI_MODEL}`,
+    `Agent endpoint http://127.0.0.1:3002/api/inngest | REAL MODEL: ${process.env.ANTHROPIC_MODEL}`,
   ),
 )
