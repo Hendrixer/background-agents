@@ -31,6 +31,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.75",
     "@ai-sdk/openai": "^4.0.78",
     "ai": "7.0.118",
     "dotenv": "^18.0.4",

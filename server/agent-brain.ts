@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { openai } from '@ai-sdk/openai'
+import { anthropic } from '@ai-sdk/anthropic'
 import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { ACTIONS, type ActionName } from '../shared/types'
@@ -14,11 +14,11 @@ const decisionSchema = z.object({
 type Decision = { action: ActionName; reason: string; detail: string }
 
 function model() {
-  const id = process.env.OPENAI_MODEL
-  if (!process.env.OPENAI_API_KEY || !id) {
-    throw new Error('Set OPENAI_API_KEY and OPENAI_MODEL in .env before starting an agent run')
+  const id = process.env.ANTHROPIC_MODEL
+  if (!process.env.ANTHROPIC_API_KEY || !id) {
+    throw new Error('Set ANTHROPIC_API_KEY and ANTHROPIC_MODEL in .env before starting an agent run')
   }
-  return openai(id)
+  return anthropic(id)
 }
 
 export async function chooseAction(goal: string, state: AgentState): Promise<Decision> {
